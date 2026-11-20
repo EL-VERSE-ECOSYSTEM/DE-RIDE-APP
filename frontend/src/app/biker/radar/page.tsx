@@ -1,0 +1,1 @@
+export default function Biker(){return <main style={{padding:24}}><a href="/">← DE RIDE</a><h1>Biker radar</h1><p>Sign in to see live requests and switch to approved Dispatch Rider mode.</p><a href="/login">Sign in →</a></main>}

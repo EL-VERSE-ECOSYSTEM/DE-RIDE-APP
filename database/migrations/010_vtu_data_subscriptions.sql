@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS vtu_data_plans(provider text NOT NULL, code text NOT NULL, network text NOT NULL, allowance text NOT NULL, price_ngn bigint NOT NULL CHECK(price_ngn>0), active boolean NOT NULL DEFAULT true, PRIMARY KEY(provider,code));
+CREATE TABLE IF NOT EXISTS vtu_data_orders(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), plan_code text NOT NULL, phone text NOT NULL, amount_ngn bigint NOT NULL, provider_reference text UNIQUE, status text NOT NULL DEFAULT 'PENDING', created_at timestamptz NOT NULL DEFAULT now());

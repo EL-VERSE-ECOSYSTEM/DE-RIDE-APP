@@ -1,7 +1,7 @@
-This master specification upgrades the initial DE RIDE v1.0 draft into an enterprise-grade, production-ready architecture tailored for Ogun State and Lagos with national scalability, incorporating your exact business rules, Groq-powered Amebo AI, multi-tier subscriptions, rank/medal gamification, and end-to-end technical blueprints.
+This master specification upgrades the initial DE RIDE v1.0 draft into an enterprise-grade, production-ready architecture engineered for a nationwide Nigerian rollout across all 36 states + FCT (with primary launch hub density in Ogun State and Lagos State), powered by a Go (Fiber) backend, Next.js 15 PWA frontend, Python (FastAPI + Groq) Amebo AI engine, Neon PostgreSQL + PostGIS, zero-cost in-app memory (no Redis until 5,000+ users), dual Biker ↔ Dispatch Rider mode switching, and an integrated Affordable Internet Data Subscription (VTU) module.
 1. Brand Identity, Color System & UI/UX Architecture
 Selected Color Palette: Logo-Matched Modern (High Contrast & Sleek)
-Looking directly at your official DE RIDE brand mark (1794927085562.jpg), the Logo-Matched Modern palette is the unequivocal winner. It creates immediate visual continuity between the emblem and the UI while delivering OLED battery savings for drivers/passengers on long trips and razor-sharp contrast in bright outdoor motor parks.
+Matched directly to your official DE RIDE brand mark (1794927085562.jpg), this palette delivers immediate visual continuity between the emblem and the UI while providing OLED battery savings for drivers/riders on long trips and razor-sharp contrast in bright outdoor motor parks.
  * Primary Background (Canvas): Deep Charcoal/Slate #1B2428
  * Elevated Surface / Cards / Bottom Sheets: Dark Gunmetal #243036 (1px border #324149)
  * Primary Navigation / Active Routes / Trust Accents: Ocean Teal #1A7D82 (Hover/Active: #229EA4)
@@ -12,74 +12,89 @@ Looking directly at your official DE RIDE brand mark (1794927085562.jpg), the Lo
  * Warning / Cooldown Timer / Grace Period: Solar Amber #F59E0B
 UI/UX & App Layout Architecture (Low-Literacy & High-Speed Optimized)
  * App Shell & Navigation:
-   * Persistent Top Header (56px): DE RIDE SVG Logo (left), Language & Voice Toggle (EN | YO | HA | IG | PCM with Web Speech API audio read-aloud icon), and Amebo AI Token Pill (e.g., ⚡ 10 Tokens).
+   * Persistent Top Header (56px): DE RIDE SVG Logo (left), Language & Voice Toggle (EN | YO | HA | IG | PCM with Web Speech API audio read-aloud icon), Amebo AI Token Pill (⚡ 10 Tokens), and—for dual-registered riders—a one-tap 🏍️ Biker ↔ 📦 Dispatch Mode Switcher.
    * Interactive Map Canvas (65% Viewport Height on Home): Custom dark-mode Google Maps (#1B2428 base geometry, #1A7D82 highway strokes, #F46A6A custom SVG park/destination pins).
    * Draggable Bottom Sheet (35%–85% Viewport Height): Snap-to-grid cards with minimum 48px × 48px touch targets, high-contrast progress bars for seat capacity (11/14 Seats), and visual iconography next to every label.
-   * Bottom Navigation Bar (64px, 5 Tabs): Explore Parks | My Tickets (QR) | Bike Hail | Amebo AI | Profile & Rank.
+   * Bottom Navigation Bar (64px, 5 Tabs — Context-Aware by Portal):
+     * Passenger: Explore Parks | My Tickets (QR) | Bike & Dispatch | Amebo AI | Data & Profile
+     * Driver / Operator: Park Queue | QR Scanner | Trip Chat | Amebo AI | Earnings & Rank
+     * Biker / Dispatch Rider: Live Radar | Active Job | Buy Data | Amebo AI | Wallet & Rank
 2. Upgraded Core Business Logic & Operational Rules
-2.1 Launch Geography & Scalability
- * Phase 1 Active Geofence: Ogun State & Lagos State (e.g., Berger, Ojota, Oshodi, Jibowu, Maza-Maza, Abeokuta Kuto/Itoku, Sagamu Interchange, Ijebu-Ode, Sango-Ota).
- * Architecture Readiness: Database schemas and Google Maps geofencing polygons are built multi-state ready (state_code indexing) so expanding nationwide requires zero schema migrations—only toggling is_active = TRUE on new state/park records.
+2.1 Nationwide Rollout & Multi-Portal Architecture
+ * Nationwide Scope (All 36 States + FCT): The database, PostGIS spatial queries, Google Maps geocoding, and state selectors support all 36 states + FCT from day one, with Ogun State and Lagos State pinned as primary launch hubs (e.g., Berger, Ojota, Oshodi, Jibowu, Maza-Maza, Abeokuta Kuto/Itoku, Sagamu Interchange, Ijebu-Ode, Sango-Ota).
+ * Six Dedicated Portals + Dual Rider Switching:
+   * Passenger Side (/(passenger)): Park discovery, bus seat booking, offline/online QR & manual ticket codes, refunds, passenger bike hailing, parcel dispatch ordering, trip chat, SOS escalation, Amebo AI, and affordable data bundles.
+   * Bus Driver Side (/(driver)): Bus capacity/departure management (with 120s lock), opt-in GPS broadcasting, online/offline QR & manual code boarding scanner, trip chat, Amebo AI, and earnings.
+   * Biker Side (/(biker)): Last-mile passenger bike hailing radar, navigation, chat, SOS, and instant switch to Dispatch Rider Mode.
+   * Dispatch Rider Side (/(dispatch-rider)): Parcel/waybill pickup & delivery feed, receiver OTP/QR proof-of-delivery, navigation, and instant switch back to Biker Mode.
+   * Park Operator & Terminal Dispatcher Side (/(park-operator)): Multi-bay terminal board, bus queue updates (120s lock), manual vs. GPS visibility toggle, driver/vehicle onboarding, and fleet settlements.
+   * DE RIDE Admin Side (/(admin)): Nationwide live command map, immediate 3-way SOS escalation console, Cloudinary KYC approval queue, park/geofence management, and financial/VTU/Amebo audit logs.
+ * Biker ↔ Dispatch Rider Dual-Registration & Switching:
+   * A verified Biker can complete a streamlined 2-step Dispatch Rider Add-On KYC (uploading courier box photo & state dispatch permit to Cloudinary).
+   * Once is_biker_verified = TRUE and is_dispatch_verified = TRUE, the rider can switch seamlessly between Biker Side and Dispatch Rider Side at any time (blocked only while an active ride or parcel delivery is in progress).
 2.2 Park Visibility, Multi-Source GPS & 120-Second Cooldown Lock
  * Dual Visibility Mode:
    * Manual Park Queue Mode: Park Operators, Dispatchers, and Drivers manually log bus arrival, seat count, and scheduled departure.
-   * Live GPS Telemetry Mode (Opt-In): Users explicitly opt in to background/foreground telemetry (acknowledging data/battery responsibility). GPS coordinates stream every 10 seconds via WebSockets from three prioritized sources:
-     * Priority 1: Dedicated Vehicle OBD/GPS Hardware (if installed).
-     * Priority 2: Driver App (navigator.geolocation high-accuracy stream).
-     * Priority 3: Dispatcher App (while bus is stationary inside park geofence).
- * 120-Second Capacity & Departure Lock (Anti-Manipulation Engine):
-   * Whenever a Park Operator, Driver, or Dispatcher updates available_seats or estimated_departure_time, the server writes a Redis/In-Memory lock key trip_lock:{trip_id} with a 120-second TTL and stores last_status_updated_at in PostgreSQL.
-   * Any subsequent update attempt within 120 seconds returns HTTP 429 Too Many Requests with retry_after_seconds (e.g., "Locked for 84s to prevent passenger confusion"). UI displays a live countdown ring.
+   * Live GPS Telemetry Mode (Opt-In): Users explicitly opt in to background/foreground telemetry (explicitly acknowledging that the user pays for their own mobile data and battery usage). GPS coordinates stream via Go goroutine WebSockets from three prioritized sources:
+     * Priority 1: Dedicated Vehicle OBD/GPS Hardware (HARDWARE).
+     * Priority 2: Driver App (DRIVER_APP high-accuracy geolocation stream).
+     * Priority 3: Dispatcher App (DISPATCHER_APP while bus is stationary inside park geofence).
+ * 120-Second Capacity & Departure Lock (Zero-Cost In-App Memory Engine):
+   * Whenever a Park Operator, Driver, or Dispatcher updates booked_seats or scheduled_departure_at, the Go backend sets an in-memory TTL lock (trip_lock:{trip_id}, 120 seconds) inside its thread-safe sync.RWMutex memory store and persists last_capacity_update_at in Neon PostgreSQL.
+   * Any subsequent edit attempt within 120 seconds returns HTTP 429 (ERR_CAPACITY_COOLDOWN_ACTIVE) with retry_after_seconds, rendered as a live countdown ring in the UI.
 2.3 Financial Engine, Fees & Refund/Cancellation Matrix
  * Checkout Breakdown (Passenger Pays All Fees Transparently):
    
-   * Paystack Fee Formula (Nigeria): 1.5\% \text{ of subtotal} + ₦100 (waived for transactions under ₦2,500, capped at ₦2,000), passed explicitly as paystack_fee line item.
+   * Paystack Fee Formula (Nigeria): 1.5\% \text{ of subtotal} + ₦100 (₦100 waived for transactions under ₦2,500, local fee capped at ₦2,000), passed explicitly as paystack_fee.
  * Strict Refund & Cancellation Logic:
-   * Non-Refundable Components: The ₦20 DE RIDE fee and the Paystack Processing Fee are NEVER refunded under any circumstance. All percentages below apply strictly to the Base Ticket Fare.
+   * Non-Refundable Components: The ₦20 DE RIDE fee and the Paystack Processing Fee are NEVER refunded under any circumstance. All percentages below apply strictly to the Base Fare.
    * Refund Destination: User chooses at cancellation/claim time between Instant DE RIDE Wallet Credit (0 fee, immediate) or Original Funding Bank Account via Paystack Transfer API (settles within T+1).
 | Scenario | Trigger Condition | Base Fare Refund % | DE RIDE ₦20 Fee | Paystack Fee |
 |---|---|---|---|---|
-| Passenger Cancellation | Passenger cancels before bus departs | 100% Refund | Non-Refundable | Non-Refundable |
-| Late Arrival | Passenger arrives/scans > 10 minutes after scheduled/agreed departure time (bus already departed or missed window) | 80% Refund | Non-Refundable | Non-Refundable |
+| Passenger Cancellation | Passenger cancels before bus departs / trip begins | 100% Refund | Non-Refundable | Non-Refundable |
+| Late Arrival | Passenger arrives/scans > 10 minutes after scheduled/agreed departure time | 80% Refund | Non-Refundable | Non-Refundable |
 | No-Show | Trip departs/completes with zero scan and zero prior cancellation | 40% Refund | Non-Refundable | Non-Refundable |
-| Operator/Driver Cancellation | Bus trip cancelled by Park/Driver | 100% Refund (+ ₦20 waived/credited) | Credited | Non-Refundable |
+| Operator/Driver Cancellation | Bus trip cancelled by Park/Driver | 100% Refund (+ ₦20 credited) | Credited | Non-Refundable |
 2.4 Real-Time Ephemeral Chat & Immediate Escalation Pipeline
  * Trip Chat Lifecycle: Automatically created when a trip opens for boarding (status = BOARDING). Accessible to paid ticket holders, the assigned Driver, and the Park Dispatcher.
- * 6-Minute Ephemeral Purge Rule: When the trip status changes to ARRIVED / COMPLETED, a scheduled BullMQ/Node cron worker triggers at completed_at + 6 minutes to hard-delete all rows in messages for that trip_id and purge Cloudinary voice/image attachments—unless an active Dispute/Report flag is attached to the trip (which freezes the chat log into dispute_evidence_archive).
- * Real-Time Admin Escalation Path:
+ * 6-Minute Ephemeral Purge Rule: When a trip transitions to ARRIVED / COMPLETED, an in-process Go background ticker worker (chat_purge_worker.go) hard-deletes all rows in messages for that trip_id at arrived_at + 6 minutes—unless an active Dispute/Report flag is attached to the trip (which freezes the chat log into escalations.preserved_chat_log).
+ * Immediate Real-Time Admin Escalation Path:
    * User taps Emergency / Report Issue inside Trip Chat or Active Ride screen.
-   * WebSocket emits escalation:trigger immediately to the DE RIDE Live Admin Command Center with GPS coordinates, trip manifest, and last 20 messages.
-   * Admin joins the live room within seconds (role: 'admin_mediator'), locking funds in escrow and bridging communication directly between User \leftrightarrow DE RIDE Admin \leftrightarrow Driver / Dispatcher / Biker in real time.
-3. Tiered Subscription Ecosystem (Passengers, Drivers, Dispatchers & Operators)
-All users can start on a base tier and upgrade seamlessly at any time. Rule Enforcement: The ₦60,000 One-Time Lifetime Plan is strictly restricted to Passengers (role === 'passenger'); Drivers, Dispatchers, and Park Operators are blocked at API and UI levels from purchasing the ₦60k one-time plan and instead choose from Per-Trip/Per-Bus or Monthly tiers.
+   * WebSocket emits escalation:create immediately to the DE RIDE Live Admin Command Center with GPS coordinates, trip manifest, and recent messages.
+   * Admin joins the live room within seconds (role: 'admin_mediator'), locking disputed funds in escrow and bridging communication directly between User \leftrightarrow DE RIDE Admin \leftrightarrow Issue / Driver / Dispatcher / Biker / Dispatch Rider in real time.
+2.5 Affordable Internet Data Subscription Module (VTU Integration)
+ * Because users pay for their own mobile data during GPS telemetry, live chat, and Amebo AI sessions, DE RIDE embeds an Affordable Internet Data Subscription storefront (/shared/buy-data) accessible to all roles (Passengers, Drivers, Bikers, Dispatch Riders, and Park Operators).
+ * Architecture: Go backend fetches SME/Corporate Gifting/Direct data plans (MTN, AIRTEL, GLO, 9MOBILE) from your configurable VTU_BASE_URL and VTU_API_KEY, caches plan lists in In-App Memory (TTL: 15 minutes), and processes instant data vending via DE RIDE Wallet (with atomic PostgreSQL FOR UPDATE balance locking and automatic wallet rollback on vendor failure) or Paystack.
+3. Tiered Subscription Ecosystem (Passengers, Drivers, Riders & Operators)
+All users can start on a base tier and upgrade seamlessly at any time. Strict Rule Enforcement: The ₦60,000 One-Time Lifetime Plan is exclusively for Passengers (role === 'passenger'). Drivers, Dispatchers, Bikers, Dispatch Riders, and Park Operators are blocked at database, Go API (HTTP 403 ERR_ROLE_PLAN_RESTRICTED), and Next.js UI levels from purchasing the ₦60,000 one-time plan.
 3.1 Passenger Subscription Tiers
 | Tier Name | Pricing | Billing Cycle | Unlocks & Premium Perks |
 |---|---|---|---|
-| Commuter Lite (Free) | ₦0 | Free Forever | • Standard park visibility & seat booking
+| Commuter Lite (Free) | ₦0 | Free Forever | • Nationwide park visibility & seat booking
 • 10 daily free Amebo AI tokens
 • Standard 2-minute seat hold during checkout |
-| Lagos-Ogun Swift Pass | ₦2,500 | Monthly | • Zero ₦20 DE RIDE booking fee on up to 15 trips/month
+| Swift Commuter Pass | ₦2,500 | Monthly | • Zero ₦20 DE RIDE booking fee on up to 15 trips/month
 • Priority Boarding Badge & 5-minute seat hold lock
 • +15 Daily Amebo AI bonus tokens (25 total/day)
 • 1 Free Late-Arrival penalty waiver per month (100% refund instead of 80%) |
 | Executive Transit Club | ₦5,000 | Monthly | • Unlimited Zero ₦20 DE RIDE booking fees
-• 10% Cashback on all Bike Hail last-mile rides
+• 10% Cashback on all Bike Hail & Parcel Dispatch orders
 • +30 Daily Amebo AI bonus tokens (40 total/day)
 • Dedicated VIP SOS priority routing & co-passenger full profile verification |
 | DE RIDE Founding Sovereign (Passenger Exclusive) | ₦60,000 | One-Time Lifetime | • Lifetime exemption from all DE RIDE platform fees forever
-• 5% Permanent Cashback on every bus & bike trip credited to Wallet
+• 5% Permanent Cashback on every bus, bike & dispatch order credited to Wallet
 • 50 Daily Amebo AI tokens for life
-• Gold Sovereign Profile Frame, priority seat selection (front seat lock), and airport/interstate lounge partner discounts |
-3.2 Driver, Dispatcher & Park Operator Tiers
-(Note: ₦60,000 One-Time Plan is disabled for these roles)
+• Gold Sovereign Profile Frame, priority front-seat lock & lounge partner perks |
+3.2 Driver, Dispatcher, Biker, Dispatch Rider & Park Operator Tiers
+(Note: ₦60,000 One-Time Plan is strictly disabled for all roles in this table)
 | Tier Name | Pricing | Billing Cycle | Unlocks & Operational Perks |
 |---|---|---|---|
-| Pay-As-You-Load (Per Bus / Per Trip) | ₦250 | Per Bus Dispatch / Trip | • Deducted automatically from Driver/Operator Wallet upon bus departure confirmation
+| Pay-As-You-Load (Per Bus / Per Trip) | ₦250 | Per Bus Dispatch / Trip | • Deducted automatically from Driver/Operator/Rider Wallet upon trip/dispatch confirmation
 • Live GPS broadcasting & digital manifest
 • Offline/Online QR Boarding Scanner
 • 10 daily free Amebo AI tokens |
-| Park Pro Fleet | ₦5,000 | Monthly (Per Vehicle) | • Unlimited bus dispatches for 30 days (saves thousands for high-frequency Lagos–Ogun routes)
-• Top-of-Park Search Placement ("Verified Express Bus" Coral tag)
+| Fleet & Rider Pro | ₦5,000 | Monthly (Per Vehicle/Bike) | • Unlimited bus dispatches / bike & parcel trips for 30 days
+• Top-of-Park & Radar Search Placement ("Verified Express" Coral tag)
 • Instant T+0 Wallet-to-Bank settlements
 • +25 Daily Amebo AI tokens for long-haul driver alertness |
 | Terminal Command Suite (Park Operators) | ₦15,000 | Monthly (Up to 10 Buses) | • Multi-bus dispatcher dashboard & live bay management
@@ -87,60 +102,63 @@ All users can start on a base tier and upgrade seamlessly at any time. Rule Enfo
 • Real-time GPS hardware API webhook integration
 • Priority Admin dispute protection |
 4. Gamification: Ranks, Medals & Cash Rewards
-Every completed trip increments completed_trips_count. Milestones automatically award a Rank Title, a 3D Metallic SVG Medal, and an Instant Cash Prize credited directly to the user's DE RIDE Wallet (withdrawable or usable for rides/tokens).
+Every completed bus trip, bike ride, or parcel delivery increments completed_trips. Milestones automatically award a Rank Title, a 3D Metallic SVG Medal, and an Instant Cash Prize credited directly to the user's DE RIDE Wallet.
 4.1 Passenger Ranks & Medals
 | Trips Completed | Rank Title | Medal Badge | Instant Cash Prize & Ongoing Perk |
 |---|---|---|---|
 | 1 – 9 Trips | Street Scout | Bronze Compass Medal | Welcome Badge + 100% referral bonus eligibility |
-| 10 – 29 Trips | Ogun-Lagos Cruiser | Silver Highway Medal | ₦500 Instant Cash Prize + 1% Wallet Cashback on bus fares |
+| 10 – 29 Trips | Highway Cruiser | Silver Highway Medal | ₦500 Instant Cash Prize + 1% Wallet Cashback on bus fares |
 | 30 – 74 Trips | Express Voyager | Gold Winged Wheel Medal | ₦2,000 Instant Cash Prize + 2% Wallet Cashback |
 | 75 – 149 Trips | Interstate Marshal | Platinum Shield Medal | ₦5,000 Instant Cash Prize + 3.5% Wallet Cashback |
 | 150+ Trips | DE RIDE Legend | Diamond Crown Medal | ₦15,000 Instant Cash Prize + 5% Wallet Cashback + VIP Support |
-4.2 Driver, Dispatcher & Biker Ranks & Medals
+4.2 Driver, Dispatcher, Biker & Dispatch Rider Ranks & Medals
 | Trips Completed | Rank Title | Medal Badge | Instant Cash Prize & Ongoing Perk |
 |---|---|---|---|
-| 1 – 24 Trips | Verified Pilot | Bronze Steering Medal | Standard park listing + Verified Driver badge |
-| 25 – 79 Trips | Route Captain | Silver Piston Medal | ₦1,500 Instant Cash Prize + 5% discount on Per-Bus ₦250 fees |
+| 1 – 24 Trips | Verified Pilot | Bronze Steering Medal | Standard park/radar listing + Verified Operator badge |
+| 25 – 79 Trips | Route Captain | Silver Piston Medal | ₦1,500 Instant Cash Prize + 5% discount on Per-Bus/Trip ₦250 fees |
 | 80 – 199 Trips | Highway Commander | Gold Turbo Medal | ₦5,000 Instant Cash Prize + Priority placement in passenger search |
 | 200 – 499 Trips | Transit Titan | Platinum Crest Medal | ₦15,000 Instant Cash Prize + 15% discount on monthly subscriptions |
 | 500+ Trips | Grand Master of the Road | Diamond Emblem Medal | ₦50,000 Instant Cash Prize + Zero payout transfer fees for life |
-5. Amebo AI Engine (Powered by Groq API)
-Amebo AI is DE RIDE's culturally fluent Nigerian travel companion, traffic gist reporter, Pidgin/Yoruba/Hausa/Igbo storyteller, trivia host, and driver fatigue-alert buddy powered by Groq LPU Inference (llama-3.3-70b-versatile & whisper-large-v3 for voice).
+5. Amebo AI Engine (Python FastAPI + Groq API)
+Amebo AI (ai/ microservice hosted on Render) is DE RIDE's culturally fluent Nigerian travel companion, traffic gist reporter, Pidgin/Yoruba/Hausa/Igbo storyteller, trivia host, and driver fatigue-alert buddy powered by Groq LPU Inference (llama-3.3-70b-versatile & whisper-large-v3 for voice).
 Token Economy & Expiration Mechanics
  * Daily Free Grant: Every active user receives 10 Free Daily Tokens at 00:00 WAT.
-   * Strict Expiration Rule: Unused daily free tokens expire at 23:59:59 WAT every day (they do not roll over).
+   * Strict Expiration Rule: Unused daily free tokens expire at 23:59:59 WAT every day (enforced by Go's token_reset_worker.go and query-time timestamp checks; they do not roll over).
  * Consumption Rate:
    * 1 Text Prompt / Story / Traffic Gist = 1 Token
    * 1 Voice-to-Voice Pidgin Banter / Trivia Round = 2 Tokens
- * Purchasable Token Packs (Non-Expiring):
+ * Purchasable Token Packs (Non-Expiring Rollover):
    * Once the 10 daily free tokens are exhausted or expired, users can buy rollover token bundles via Paystack or DE RIDE Wallet:
      * Starter Gist Pack: 23 Tokens — ₦4,200
      * Long-Bridge Pack: 50 Tokens — ₦6,700
      * Expressway Pack: 75 Tokens — ₦8,000
      * Oga Boss Pack: 100 Tokens — ₦10,200
-   * Deduction Order: System always deducts from daily_free_tokens first before touching purchased_tokens.
-6. Complete Tech & Design Stack
- * Design & Prototyping: Figma (Variables for Dark/High-Contrast tokens), LottieFiles (micro-animations for QR scan success & radar pulses), Lucide Icons + Custom SVG Nigerian Transit Icon Set.
- * Frontend (PWA & Mobile Web): Next.js 15 (App Router, TypeScript), Tailwind CSS, Zustand (client state & offline queue), IndexedDB / Dexie.js (offline QR ticket vault & cryptographic public key cache), @vis.gl/react-google-maps (Google Maps JS API), html5-qrcode (camera scanner).
- * Backend API & Real-Time Engine: Node.js 22 + Express.js (TypeScript), Socket.io (WebSockets with Redis/In-Memory adapter), BullMQ (scheduled jobs for 6-min chat wipe, midnight Amebo token reset, and no-show refund checks).
- * Database & Spatial: Neon Serverless PostgreSQL 16 with PostGIS extension (geofencing Ogun/Lagos parks & radius queries) + Upstash Redis (120s cooldown locks & rate limiting).
- * AI Engine: Groq Cloud API (groq-sdk using llama-3.3-70b-versatile for ultra-low latency <300ms responses).
+   * Deduction Order: Go backend always deducts from daily_free_tokens first (when now() < daily_tokens_expires_at) before deducting from purchased_tokens.
+6. Complete Tech & Design Stack (Zero External Cache Cost Under 5,000 Users)
+ * Design & Prototyping: Figma (Dark/High-Contrast tokens), LottieFiles (micro-animations for QR scan success & radar pulses), Lucide Icons + Custom SVG Nigerian Transit & Telco Icon Set.
+ * Frontend PWA (frontend/ on Vercel): Next.js 15 (App Router, TypeScript), Tailwind CSS, Zustand (client state & active Biker/Dispatch mode), IndexedDB / Dexie.js (offline QR ticket vault & ECDSA public key cache), @vis.gl/react-google-maps (Google Maps JS API), html5-qrcode (camera scanner).
+ * Backend API & Real-Time Engine (backend/ on Render): Go 1.23+ (Fiber v2), gorilla/websocket / gofiber/contrib/websocket (goroutine rooms for GPS, chat & SOS), pgx/v5 (Neon Postgres driver), and an In-App Memory CacheStore (sync.RWMutex + TTL janitor) + Go ticker workers (zero external Redis/BullMQ cost until 5,000+ users; interface-ready for Redis drop-in later).
+ * AI Microservice (ai/ on Render): Python 3.12+ (FastAPI + Uvicorn) + groq async Python SDK (llama-3.3-70b-versatile & whisper-large-v3).
+ * Database & Spatial (database/ on Neon): Neon Serverless PostgreSQL 16 with PostGIS extension (nationwide 36-state + FCT park geofencing & radius queries).
  * Maps & Telemetry: Google Maps Platform (Maps JavaScript API, Directions API, Distance Matrix API, Places Autocomplete, Geocoding API).
- * Media & Document Automation: Cloudinary Node SDK (auto-format f_auto, q_auto, signed upload presets, OCR/moderation add-on for driver license & vehicle papers).
- * Email & OTP Delivery: Nodemailer via Gmail SMTP (elversetechnologies@gmail.com authenticated with Google App Password).
- * Payments: Paystack API (Initialize Transaction, Webhook HMAC SHA-512 verification, Transfers API for bank refunds/payouts, Dedicated Virtual Accounts for Wallets).
-7. Complete Database Schema (PostgreSQL + PostGIS)
+ * Media & Document Automation: Cloudinary SDK (signed upload presets, face-crop transforms c_thumb,g_face, OCR/moderation webhook for driver/biker/dispatch credentials).
+ * Email & OTP Delivery: Go net/smtp TLS / Nodemailer-compatible SMTP via Gmail (elversetechnologies@gmail.com authenticated with Google App Password).
+ * Payments & VTU Data: Paystack API (Initialize Transaction, Webhook HMAC SHA-512 verification, Transfers API for bank refunds/payouts) + Configurable VTU Provider API (VTU_BASE_URL / VTU_API_KEY).
+7. Complete Database Schema (Neon PostgreSQL + PostGIS)
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "postgis";
 
--- 1. USERS & GAMIFICATION
+-- 1. USERS, DUAL RIDER MODES & GAMIFICATION
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(120) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     phone_number VARCHAR(20) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('passenger', 'driver', 'dispatcher', 'operator', 'biker', 'admin')),
+    role VARCHAR(25) NOT NULL CHECK (role IN ('passenger', 'driver', 'dispatcher', 'operator', 'biker', 'dispatch_rider', 'admin')),
+    active_rider_mode VARCHAR(25) CHECK (active_rider_mode IN ('biker', 'dispatch_rider')),
+    is_biker_verified BOOLEAN DEFAULT FALSE,
+    is_dispatch_verified BOOLEAN DEFAULT FALSE,
     language_pref VARCHAR(5) DEFAULT 'en' CHECK (language_pref IN ('en', 'yo', 'ha', 'ig', 'pcm')),
     profile_photo_url TEXT,
     cloudinary_public_id TEXT,
@@ -160,7 +178,7 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. EMAIL OTP VERIFICATION (Nodemailer)
+-- 2. EMAIL OTP VERIFICATION (elversetechnologies@gmail.com)
 CREATE TABLE email_otps (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(150) NOT NULL,
@@ -171,16 +189,18 @@ CREATE TABLE email_otps (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. DRIVER / VEHICLE CREDENTIALS (Cloudinary Automated Pipeline)
+-- 3. VEHICLE, BIKE & DISPATCH CREDENTIALS (Cloudinary Automated Pipeline)
 CREATE TABLE vehicle_credentials (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    vehicle_type VARCHAR(20) CHECK (vehicle_type IN ('BUS_14_SEATER', 'BUS_18_SEATER', 'COASTER', 'SIENNA', 'BIKE')),
+    vehicle_type VARCHAR(25) CHECK (vehicle_type IN ('BUS_14_SEATER', 'BUS_18_SEATER', 'COASTER', 'SIENNA', 'BIKE', 'DISPATCH_BIKE')),
     plate_number VARCHAR(20) UNIQUE NOT NULL,
     seat_capacity INT NOT NULL,
     drivers_license_url TEXT NOT NULL,
     vehicle_license_url TEXT NOT NULL,
     road_worthiness_url TEXT NOT NULL,
+    dispatch_box_photo_url TEXT, -- Required when unlocking Dispatch Rider mode
+    dispatch_permit_url TEXT,    -- Required when unlocking Dispatch Rider mode
     cloudinary_asset_ids JSONB NOT NULL,
     hardware_gps_imei VARCHAR(50) UNIQUE,
     verification_status VARCHAR(20) DEFAULT 'PENDING' CHECK (verification_status IN ('PENDING', 'APPROVED', 'REJECTED')),
@@ -189,14 +209,16 @@ CREATE TABLE vehicle_credentials (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. STATIONARY BUS PARKS (Ogun & Lagos + Nationwide Ready)
+-- 4. NATIONWIDE STATIONARY BUS PARKS (All 36 States + FCT; Ogun & Lagos Launch Hubs)
 CREATE TABLE bus_parks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     park_name VARCHAR(150) NOT NULL,
     address TEXT NOT NULL,
     lga VARCHAR(80) NOT NULL,
-    state VARCHAR(50) NOT NULL, -- 'Lagos', 'Ogun', etc.
-    is_active BOOLEAN DEFAULT TRUE, -- TRUE for Lagos & Ogun at launch
+    state VARCHAR(50) NOT NULL,
+    state_code VARCHAR(5) NOT NULL, -- e.g., 'LA', 'OG', 'FC', 'RV', 'KN'
+    is_launch_priority BOOLEAN DEFAULT FALSE, -- TRUE for Ogun & Lagos hub parks
+    is_active BOOLEAN DEFAULT TRUE,
     geofence GEOGRAPHY(POLYGON, 4326),
     center_point GEOGRAPHY(POINT, 4326) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -232,8 +254,8 @@ CREATE TABLE tickets (
     trip_id UUID REFERENCES trips(id),
     passenger_id UUID REFERENCES users(id),
     seat_number INT NOT NULL,
-    manual_ticket_code VARCHAR(14) UNIQUE NOT NULL, -- e.g., DR-LG-8492-X7
-    qr_signed_payload TEXT NOT NULL, -- ECDSA/HMAC signed JWT for offline verification
+    manual_ticket_code VARCHAR(15) UNIQUE NOT NULL, -- e.g., DR-LA-8492-X7
+    qr_signed_payload TEXT NOT NULL, -- ECDSA P-256 signed JWT for offline verification
     base_fare NUMERIC(10, 2) NOT NULL,
     platform_fee NUMERIC(10, 2) DEFAULT 20.00,
     paystack_fee NUMERIC(10, 2) NOT NULL,
@@ -248,21 +270,44 @@ CREATE TABLE tickets (
     UNIQUE(trip_id, seat_number)
 );
 
--- 7. EPHEMERAL MESSAGES (6-Minute Auto-Purge)
+-- 7. BIKER & DISPATCH RIDER ORDERS
+CREATE TABLE rider_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_type VARCHAR(20) NOT NULL CHECK (order_type IN ('BIKE_PASSENGER', 'PARCEL_DISPATCH')),
+    customer_id UUID REFERENCES users(id),
+    rider_id UUID REFERENCES users(id),
+    pickup_address TEXT NOT NULL,
+    pickup_point GEOGRAPHY(POINT, 4326) NOT NULL,
+    dropoff_address TEXT NOT NULL,
+    dropoff_point GEOGRAPHY(POINT, 4326) NOT NULL,
+    parcel_description TEXT,
+    receiver_phone VARCHAR(20),
+    delivery_otp VARCHAR(6),
+    base_fare NUMERIC(10, 2) NOT NULL,
+    platform_fee NUMERIC(10, 2) DEFAULT 20.00,
+    paystack_fee NUMERIC(10, 2) NOT NULL,
+    total_paid NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(25) DEFAULT 'SEARCHING' CHECK (status IN ('SEARCHING', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED_100', 'LATE_80', 'NO_SHOW_40')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. EPHEMERAL MESSAGES (6-Minute Auto-Purge)
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     trip_id UUID REFERENCES trips(id) ON DELETE CASCADE,
+    rider_order_id UUID REFERENCES rider_orders(id) ON DELETE CASCADE,
     sender_id UUID REFERENCES users(id),
-    sender_role VARCHAR(20) NOT NULL,
+    sender_role VARCHAR(25) NOT NULL,
     content TEXT NOT NULL,
     is_flagged BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. REAL-TIME ESCALATIONS & ADMIN DISPUTES
+-- 9. REAL-TIME ESCALATIONS & ADMIN DISPUTES
 CREATE TABLE escalations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     trip_id UUID REFERENCES trips(id),
+    rider_order_id UUID REFERENCES rider_orders(id),
     reporter_id UUID REFERENCES users(id),
     accused_user_id UUID REFERENCES users(id),
     assigned_admin_id UUID REFERENCES users(id),
@@ -274,11 +319,11 @@ CREATE TABLE escalations (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. SUBSCRIPTIONS, LEDGER & AMEBO AI TRANSACTIONS
+-- 10. SUBSCRIPTIONS, LEDGER, AMEBO AI & VTU DATA ORDERS
 CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id),
-    tx_type VARCHAR(35) CHECK (tx_type IN ('TICKET_PURCHASE', 'REFUND', 'SUBSCRIPTION', 'PER_BUS_FEE', 'AMEBO_TOKENS', 'RANK_CASH_PRIZE', 'CASHBACK', 'WITHDRAWAL')),
+    tx_type VARCHAR(35) CHECK (tx_type IN ('TICKET_PURCHASE', 'RIDER_ORDER', 'REFUND', 'SUBSCRIPTION', 'PER_BUS_FEE', 'AMEBO_TOKENS', 'VTU_DATA', 'RANK_CASH_PRIZE', 'CASHBACK', 'WITHDRAWAL')),
     amount NUMERIC(12, 2) NOT NULL,
     paystack_fee NUMERIC(10, 2) DEFAULT 0.00,
     platform_fee NUMERIC(10, 2) DEFAULT 0.00,
@@ -288,137 +333,109 @@ CREATE TABLE transactions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE vtu_data_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    network VARCHAR(15) NOT NULL CHECK (network IN ('MTN', 'AIRTEL', 'GLO', '9MOBILE')),
+    plan_code VARCHAR(60) NOT NULL,
+    plan_label VARCHAR(120) NOT NULL,
+    beneficiary_phone VARCHAR(20) NOT NULL,
+    amount_paid NUMERIC(10, 2) NOT NULL,
+    vtu_provider_ref VARCHAR(120),
+    status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'DELIVERED', 'FAILED_REFUNDED')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 8. Offline & Online QR + Manual Ticket Code Specification
-Motor parks in Lagos and Ogun frequently experience cellular dead zones. Tickets are built to verify in <150ms completely offline.
+Motor parks across Nigeria frequently experience cellular dead zones. Tickets verify in <150ms completely offline.
  * Manual Ticket Code Format: DR-{STATE_CODE}-{4_DIGITS}-{2_ALPHANUM_CHECKSUM}
-   * Example: DR-OG-4918-K3 (Ogun State origin) or DR-LG-7302-M9 (Lagos State origin).
-   * Checksum Logic: Last 2 characters are Base32-encoded Mod-97 checksum of (trip_id + seat_number + passenger_id_prefix) so a Driver/Dispatcher can verify structural validity even without internet.
+   * Example: DR-OG-4918-K3 (Ogun State) or DR-LA-7302-M9 (Lagos State).
+   * Checksum Logic: Last 2 characters are Base32-encoded Mod-97 checksum of (trip_id + seat_number + passenger_id_prefix) so a Driver/Dispatcher can verify structural validity without internet.
  * Cryptographic QR Payload:
-   * When Paystack confirms payment, the backend signs a compact JSON payload using ES256 (ECDSA P-256 Private Key):
+   * When Paystack or Wallet confirms payment, the Go backend signs a compact JSON payload using ES256 (ECDSA P-256 Private Key):
      {
   "tid": "9f8c2a1b",
-  "tkt": "DR-LG-7302-M9",
+  "tkt": "DR-LA-7302-M9",
   "seat": 4,
   "pax": "Chinedu O.",
   "exp": 1795003200
 }
 
-   * Offline Verification Flow: The Driver/Dispatcher PWA caches the DE RIDE ES256 Public Key in IndexedDB upon login. When scanning a passenger's QR code offline, the app verifies the cryptographic signature locally, checks the local trip manifest for duplicate seat scans, marks scanned_offline = true in IndexedDB, and syncs to PostgreSQL automatically via Background Sync once 3G/4G/5G returns.
+   * Offline Verification Flow: The Driver/Dispatcher PWA caches the DE RIDE ES256 Public Key in IndexedDB upon login. When scanning a passenger's QR code offline, the app verifies the cryptographic signature locally via WebCrypto API, checks the local trip manifest for duplicate seat scans, marks scanned_offline = true in IndexedDB, and syncs to Go/PostgreSQL automatically via Service Worker Background Sync once connectivity returns.
 9. Complete Page & Feature Inventory (Zero Mock Data — Real Production Content & Fields)
-Page 1: Authentication & Onboarding (/auth/register, /auth/login, /auth/verify-otp)
- * Fields & Controls:
-   * Role Selector Cards: Passenger | Driver | Park Dispatcher | Park Operator | Bike Rider.
-   * Registration Inputs: Full Legal Name (text), Email Address (email), Nigerian Phone Number (+234 validated), Password (min 8 chars, 1 uppercase, 1 number), Preferred Language (English, Yoruba, Hausa, Igbo, Pidgin).
-   * Telemetry & Policy Opt-In Checkboxes:
-     * [ ] I opt in to share live GPS telemetry during active trips (I understand mobile data and battery usage apply to my device).
-     * [ ] I accept the DE RIDE Refund Policy (₦20 platform fee and Paystack fees are non-refundable).
- * Email OTP Automation (Nodemailer):
-   * Backend generates a cryptographically random 6-digit OTP, hashes it with bcrypt, stores it in email_otps (10-minute expiry), and dispatches a branded HTML email from elversetechnologies@gmail.com via Google App Password SMTP.
-Page 2: Automated KYC & Vehicle Verification (/kyc/verify)
- * Applicable Roles: Driver, Dispatcher, Park Operator, Biker (Optional for Passengers to earn "Verified Co-Passenger" badge).
- * Fields & Cloudinary Automated Pipeline:
-   * Profile Selfie: Live camera capture (facingMode: "user"), uploaded directly to Cloudinary folder deride/profiles/{user_id} with face-detection crop (c_thumb,g_face,w_400,h_400).
-   * Vehicle Registration Inputs: Vehicle Type dropdown, Plate Number (LND-482-XY / AAB-109-GQ regex validated), Seat Capacity (4 to 32), Optional Hardware GPS IMEI.
-   * Document Uploads: Driver's License (Front/Back), Vehicle License, Certificate of Roadworthiness.
-   * Automation Logic: Frontend requests a short-lived signed upload signature from /api/v1/media/cloudinary-sign, uploads directly to Cloudinary, and triggers a Cloudinary webhook that validates document clarity/mime-type, updates vehicle_credentials, and notifies the Admin Queue.
-Page 3: Live Park Explorer & Google Maps Hub (/dashboard)
- * Real Production UI Content:
-   * State Filter Pill: All Active (Lagos & Ogun) | Lagos State | Ogun State.
-   * Google Map Layer: Interactive dark map plotting stationary parks (e.g., Ojota New Garage, Berger Bus Terminal, Jibowu Terminal, Kuto Park Abeokuta, Sagamu Interchange). Live moving bus icons update smoothly via requestAnimationFrame interpolation from WebSocket GPS streams.
-   * Live Bus Queue Card:
-     * Header: Plate: KTU-912-XA • 14-Seater Toyota Hiace + GPS Source Badge (📡 Hardware GPS / 📱 Driver GPS / 🏢 Park Manual).
-     * Route: Berger Park (Lagos) ➔ Kuto Park (Abeokuta).
-     * Capacity Bar: 11 / 14 Seats Filled (3 Left) in Ocean Teal.
-     * Departure Countdown: Departs in 14 mins (12:15 PM) + Operator Lock Indicator (Update locked for 01:42s).
-     * Action Button (Coral #F46A6A): Select Seat • ₦3,500.
-Page 4: Interactive Seat Picker & Transparent Paystack Checkout (/trips/:id/book)
- * Real Production UI Content:
-   * Visual Bus Seat Map: SVG top-down cabin diagram showing Driver, Front Seat (1), and rows 2–14 color-coded (#243036 Available, #1A7D82 Selected, #3F4E56 Occupied with anonymized co-passenger initials & rank medal, e.g., Adebayo K. • Gold Medal).
-   * Itemized Fare Receipt:
-     * Base Ticket Fare: ₦3,500.00
-     * DE RIDE Service Fee: ₦20.00 (₦0.00 if subscribed to Swift/Executive/Sovereign)
-     * Paystack Processing Fee: ₦152.80 (Calculated dynamically)
-     * Total Payable: ₦3,672.80
-   * Payment Methods: Pay via Paystack (Card / Bank Transfer / USSD) or Pay via DE RIDE Wallet.
-Page 5: Digital Boarding Pass, Offline QR & Refund Manager (/tickets/:id)
- * Real Production UI Content:
-   * High-contrast white QR container (for optimal camera contrast on dark screen) + bold copyable Manual Code (DR-LG-7302-M9).
-   * Live Departure & Refund Timer: Displays exact cutoffs:
-     * Before Departure: Cancel Ride (100% Base Fare Refund = ₦3,500)
-     * 0–10 Mins Post-Departure: Grace Window Active — Scan Now
-     * >10 Mins Post-Departure (Missed Bus): Claim Late Arrival Refund (80% Base Fare = ₦2,800)
-   * Refund Destination Selector: Instant DE RIDE Wallet vs. Original Bank Account.
-Page 6: Live Trip Chat & Real-Time Admin Escalation (/trips/:id/chat)
- * Real Production UI Content:
-   * Ephemeral Banner: "🔒 End-to-end trip room. Messages auto-delete permanently 6 minutes after arrival." (Switches to a live countdown 05:59 once status = ARRIVED).
-   * Participant Pills: Shows Driver, Dispatcher, and seated Passengers.
-   * Red Escalation Button (🚨 Escalate to DE RIDE Admin): Opens immediate issue drawer (Driver Off-Route, Overcharging / Extortion, Vehicle Breakdown, Safety / Harassment, Departure Delay). Submitting immediately alerts live Admin support into the chat thread.
-Page 7: Driver, Dispatcher & Park Operator Console (/operator/console)
- * Real Production UI Content:
-   * Active Bus Controller: +1 / -1 Seat buttons and Update Departure Time picker with a live 120-Second Cooldown Progress Ring preventing rapid edits.
-   * GPS Broadcast Toggle: Switch between Driver App GPS and Park Manual Mode (with real-time data/battery opt-in indicator).
-   * Boarding Scanner Tab: Built-in camera QR reader + Manual Code keypad (DR-__-____-__) that works both online and offline.
-   * Subscription Status: Shows Pay-Per-Bus (₦250/dispatch) or Park Pro Fleet (₦5,000/mo) — explicitly hiding the ₦60,000 Passenger Lifetime option.
-Page 8: Amebo AI Companion (/amebo-ai)
- * Real Production UI Content:
-   * Token Wallet Header: Daily Free Tokens: 7 / 10 (Expires at 11:59 PM) | Purchased Rollover Tokens: 50.
-   * Quick-Start Pills: "Lagos-Ibadan Expressway Traffic Gist", "Tell me a funny Yoruba/Pidgin road story", "Naija Music & Football Trivia", "Driver Awake Mode (Voice Banter)".
-   * Top-Up Drawer: Displays the 4 purchasable bundles (23 Tokens - ₦4,200, 50 Tokens - ₦6,700, 75 Tokens - ₦8,000, 100 Tokens - ₦10,200).
-Page 9: Subscriptions, Ranks, Medals & Wallet (/profile)
- * Real Production UI Content:
-   * Rank Showcase Card: Displays current 3D Medal SVG, Rank Title (e.g., Express Voyager), progress bar to next rank (42 / 75 Trips), and lifetime cash prizes earned.
-   * Wallet & Payouts: Displays Wallet Balance, Cashback Earned, Withdraw to Nigerian Bank (Paystack Transfer), and Upgrade Subscription Tier.
-10. Complete REST & WebSocket API Documentation
-10.1 Authentication & Media
+ * Authentication & Onboarding (/auth/register, /auth/login, /auth/verify-otp):
+   * Role Selector Cards (Passenger, Bus Driver, Bike Rider, Dispatch Rider, Park Dispatcher, Park Operator), Full Legal Name, Email, +234 Phone Number, Password, Language (EN, YO, HA, IG, PCM), and explicit GPS Data/Battery Opt-In & Non-Refundable Fee Policy checkboxes. Dispatches 6-digit OTP via elversetechnologies@gmail.com.
+ * Automated KYC & Dual Biker/Dispatch Upgrade (/kyc/verify & /biker/dual-upgrade):
+   * Live camera selfie (c_thumb,g_face), Plate Number, Vehicle/Bike Type, Seat Capacity, Driver's License, Vehicle License, Roadworthiness, plus optional Courier Box Photo & State Dispatch Permit to unlock instant switching between Biker Mode and Dispatch Rider Mode.
+ * Nationwide Park Explorer & Google Maps Hub (/passenger/explore):
+   * State selector covering all 36 states + FCT with pinned Lagos & Ogun quick-filter pills, dark-mode Google Maps plotting live parks and interpolated moving buses, GPS source badges (📡 Hardware GPS, 📱 Driver GPS, 🏢 Park Manual), seat progress bars, and live 120s lock countdown indicators.
+ * Interactive Seat Picker & Transparent Paystack Checkout (/passenger/trips/:id/book):
+   * Visual SVG bus cabin seat map showing anonymized co-passenger initials & rank medals, plus exact itemized breakdown (Base Fare + ₦20 DE RIDE Fee + Paystack Processing Fee).
+ * Digital Boarding Pass, Offline QR & Refund Manager (/passenger/tickets/:id):
+   * High-contrast QR pass + copyable DR-XX-XXXX-XX manual code, live cutoff timers for 100% Cancellation, 10-min Boarding Grace, 80% Late Arrival (>10 mins), and 40% No-Show refunds to Wallet or Bank Account.
+ * Live Trip Chat & Immediate Admin Escalation (/trips/:id/chat):
+   * Ephemeral messaging banner with live 05:59 post-arrival self-destruct countdown and red 🚨 Escalate to DE RIDE Admin button bridging User <-> DE RIDE Admin <-> Driver / Dispatcher / Biker / Dispatch Rider in real time.
+ * Driver, Dispatcher & Park Operator Console (/driver/dashboard & /park-operator/terminal):
+   * +1 / -1 Seat & Departure Time controls protected by the 120-Second Cooldown Ring, GPS source selector, online/offline QR scanner + manual code keypad, and fleet billing (₦250/bus or ₦5,000/mo or ₦15,000/mo — hiding ₦60,000 Passenger Lifetime plan).
+ * Biker & Dispatch Rider Dual Portals (/biker/radar & /dispatch-rider/deliveries):
+   * Real-time passenger hail radar and parcel delivery feed with a header 🏍️ Biker ↔ 📦 Dispatch Switcher for dual-verified riders.
+ * Amebo AI Companion (/shared/amebo-ai):
+   * Groq-powered chat & voice companion displaying Daily Free Tokens: X / 10 (Expires 11:59 PM WAT) and Purchased Rollover Tokens, plus instant top-up cards for 23 (₦4,200), 50 (₦6,700), 75 (₦8,000), and 100 (₦10,200) tokens.
+ * Affordable Internet Data Subscription (/shared/buy-data):
+   * Telco selector (MTN, Airtel, Glo, 9mobile), live SME/Gifting/Direct bundle cards fetched from your VTU API, beneficiary phone input, and instant Wallet/Paystack checkout.
+ * DE RIDE Admin Command Center (/admin/command-map & /admin/escalations):
+   * Nationwide 36-state + FCT live telemetry map, real-time 3-way SOS mediation console, Cloudinary KYC approval queue, and financial/VTU/Amebo audit tables.
+10. Complete REST & WebSocket API Documentation (Go Backend + Python AI)
+10.1 Authentication, Dual Mode & Media
 | Method | Endpoint | Auth | Request Payload / Description |
 |---|---|---|---|
 | POST | /api/v1/auth/register | Public | { full_name, email, phone_number, password, role, language_pref, gps_opt_in } — Sends 6-digit OTP via elversetechnologies@gmail.com. |
-| POST | /api/v1/auth/verify-otp | Public | { email, otp, purpose } — Returns access_token (JWT) + refresh_token. |
-| POST | /api/v1/media/cloudinary-sign | Bearer | { folder_type: 'PROFILE' | 'VEHICLE_DOC' } — Generates time-limited Cloudinary signature. |
-| POST | /api/v1/kyc/vehicle | Bearer | { vehicle_type, plate_number, seat_capacity, drivers_license_url, vehicle_license_url, road_worthiness_url, hardware_gps_imei? } |
+| POST | /api/v1/auth/verify-otp | Public | { email, otp, purpose } — Returns access_token + refresh_token. |
+| POST | /api/v1/users/switch-rider-mode | Biker / Dispatch | { target_mode: 'biker' | 'dispatch_rider' } — Verifies dual KYC & zero active orders; returns updated JWT. |
+| POST | /api/v1/media/cloudinary-sign | Bearer | { folder_type: 'PROFILE' | 'VEHICLE_DOC' | 'DISPATCH_DOC' } — Generates signed Cloudinary upload params. |
 10.2 Parks, Live Trips & 120s Cooldown Control
 | Method | Endpoint | Auth | Request Payload / Description |
 |---|---|---|---|
-| GET | /api/v1/parks | Bearer | Query: ?state=Lagos&lat=6.6018&lng=3.3515 — Returns active parks in Lagos & Ogun with live bus counts. |
-| GET | /api/v1/parks/:parkId/trips | Bearer | Returns boarding buses, seat availability, GPS source, and remaining 120s lock timer. |
-| PATCH | /api/v1/trips/:tripId/capacity-departure | Driver / Dispatcher / Operator | { booked_seats?, scheduled_departure_at? } — Enforces 120-second cooldown. Returns 429 with retry_after_seconds if locked. |
-| POST | /api/v1/trips/:tripId/depart | Driver / Operator | Marks bus DEPARTED, deducts ₦250 if on PER_BUS_250 plan, starts 10-min late-arrival grace timer. |
-10.3 Ticketing, Offline Sync & Refund Engine
+| GET | /api/v1/parks | Bearer | Query: ?state=Lagos&lat=6.6018&lng=3.3515 — Returns active parks nationwide (Ogun & Lagos prioritized). |
+| PATCH | /api/v1/trips/:tripId/capacity-departure | Driver / Dispatcher / Operator | { booked_seats?, scheduled_departure_at? } — Enforces 120-second in-memory cooldown. Returns 429 with retry_after_seconds if locked. |
+| POST | /api/v1/trips/:tripId/depart | Driver / Operator | Marks bus DEPARTED, deducts ₦250 if on Per-Bus plan, starts 10-min late-arrival grace timer. |
+10.3 Ticketing, Offline Sync, Refunds & VTU Data
 | Method | Endpoint | Auth | Request Payload / Description |
 |---|---|---|---|
-| POST | /api/v1/tickets/checkout | Passenger | { trip_id, seat_number, payment_method: 'PAYSTACK' | 'WALLET' } — Calculates Base + ₦20 (if applicable) + Paystack Fee and initializes payment. |
-| POST | /api/v1/webhooks/paystack | HMAC-SHA512 | Verifies Paystack signature, mints ES256 QR ticket + DR-XX-XXXX-XX code, awards rank progress if applicable. |
-| POST | /api/v1/tickets/scan | Driver / Dispatcher | { qr_payload?, manual_code?, scanned_at, offline_sync: boolean } — Validates signature and marks passenger BOARDED. |
+| POST | /api/v1/tickets/checkout | Passenger | { trip_id, seat_number, payment_method: 'PAYSTACK' | 'WALLET' } — Computes Base + ₦20 + Paystack Fee. |
+| POST | /api/v1/tickets/scan | Driver / Dispatcher | { qr_payload?, manual_code?, scanned_at, offline_sync: boolean } — Validates ECDSA signature and marks BOARDED. |
 | POST | /api/v1/tickets/:ticketId/refund | Passenger | { claim_type: 'CANCEL' | 'LATE_ARRIVAL' | 'NO_SHOW', destination: 'WALLET' | 'BANK_ACCOUNT', bank_details? } — Computes 100% / 80% / 40% of Base Fare only. |
-10.4 Subscriptions, Gamification & Amebo AI
+| GET | /api/v1/data/plans | Bearer | Query: ?network=MTN — Returns cached affordable data bundles from VTU_BASE_URL. |
+| POST | /api/v1/data/purchase | Bearer | { network, plan_code, beneficiary_phone, payment_method } — Vends mobile data via VTU_BASE_URL + VTU_API_KEY. |
+10.4 Subscriptions, Gamification & Amebo AI (Go \rightarrow Python FastAPI)
 | Method | Endpoint | Auth | Request Payload / Description |
 |---|---|---|---|
 | POST | /api/v1/subscriptions/upgrade | Bearer | { tier_code } — Rejects SOVEREIGN_60K with 403 if role !== 'passenger'. |
-| GET | /api/v1/gamification/status | Bearer | Returns current rank, medal SVG URL, trip count, next milestone, and cashback ledger. |
-| POST | /api/v1/amebo/chat | Bearer | { message, mode: 'TEXT' | 'VOICE', language } — Deducts 1 or 2 tokens (daily free first, then purchased) and streams Groq response. |
+| POST | /api/v1/amebo/chat | Bearer | { message, mode: 'TEXT' | 'VOICE', language } — Deducts 1 or 2 tokens (daily 10 free first) and proxies to Python POST /ai/v1/chat. |
 | POST | /api/v1/amebo/tokens/buy | Bearer | { pack_id: 'PACK_23' | 'PACK_50' | 'PACK_75' | 'PACK_100', payment_method } — Processes ₦4,200 / ₦6,700 / ₦8,000 / ₦10,200. |
-10.5 Real-Time WebSockets & Admin Escalation
+10.5 Real-Time WebSockets (Go Goroutine Hub)
 | Event Name | Direction | Payload & Behavior |
 |---|---|---|
-| gps:telemetry_push | Client/Hardware \rightarrow Server | { trip_id, lat, lng, speed, source } — Requires gps_opt_in = true; broadcasts gps:bus_moved to park subscribers. |
-| chat:send_message | Client \rightarrow Server | { trip_id, content } — Broadcasts to trip room; blocked if now() > arrived_at + 6 mins. |
-| escalation:create | Client \rightarrow Server | { trip_id, category, description, lat, lng } — Immediately pages live DE RIDE Admin dashboard & joins Admin to room. |
+| gps:telemetry_push | Client/Hardware \rightarrow Server | { trip_id, lat, lng, speed, source } — Requires gps_opt_in = true; enforces HARDWARE > DRIVER_APP > DISPATCHER_APP priority. |
+| chat:send_message | Client \rightarrow Server | { trip_id, content } — Broadcasts to room; blocked if now() > arrived_at + 6 mins. |
+| escalation:create | Client \rightarrow Server | { trip_id?, rider_order_id?, category, description, lat, lng } — Immediately alerts live DE RIDE Admin & opens 3-way mediation room. |
 11. Standardized Error Code Registry
 | HTTP Status | Error Code | Trigger Condition & User-Facing Resolution |
 |---|---|---|
-| 400 | ERR_OUTSIDE_LAUNCH_GEOFENCE | Park or trip coordinates fall outside Ogun State or Lagos State during Phase 1 rollout. |
-| 403 | ERR_ROLE_PLAN_RESTRICTED | Driver, Dispatcher, or Park Operator attempts to purchase the ₦60,000 One-Time Lifetime Plan. |
+| 402 | ERR_AMEBO_INSUFFICIENT_TOKENS | Daily 10 free tokens have been used/expired and purchased_tokens == 0. Prompts token pack purchase. |
+| 403 | ERR_ROLE_PLAN_RESTRICTED | Driver, Dispatcher, Biker, Dispatch Rider, or Park Operator attempts to purchase the ₦60,000 One-Time Lifetime Plan. |
+| 403 | ERR_DISPATCH_KYC_INCOMPLETE | Biker attempts to switch to Dispatch Rider mode without verified dispatch box/permit credentials. |
 | 403 | ERR_GPS_OPT_IN_REQUIRED | Client attempts to stream GPS coordinates without gps_opt_in = true. |
 | 409 | ERR_SEAT_ALREADY_LOCKED | Another passenger locked or purchased the requested seat_number milliseconds earlier. |
+| 409 | ERR_ACTIVE_ORDER_MODE_LOCK | Biker/Dispatch Rider attempts to switch modes while an active ride or delivery is in progress. |
 | 410 | ERR_CHAT_WINDOW_EXPIRED | Attempt to send or fetch chat messages more than 6 minutes after the trip ended. |
 | 422 | ERR_REFUND_WINDOW_INVALID | Passenger requests a LATE_ARRIVAL (80%) refund before the 10-minute post-departure threshold has elapsed. |
 | 429 | ERR_CAPACITY_COOLDOWN_ACTIVE | Operator/Driver/Dispatcher attempts to edit bus seats or departure time before the 120-second lock expires. |
-| 402 | ERR_AMEBO_INSUFFICIENT_TOKENS | Daily 10 free tokens have been used/expired and purchased_tokens == 0. Prompts token pack purchase. |
 12. Production Security & Compliance Checklist
- * [ ] Cryptographic Payment Verification: Verify x-paystack-signature using crypto.createHmac('sha512', PAYSTACK_SECRET_KEY) on raw request buffers before fulfilling tickets, subscriptions, or Amebo token packs; enforce idempotency keys on paystack_reference.
- * [ ] Offline QR Key Rotation: Store the ECDSA P-256 private signing key exclusively in Render environment secrets; expose only the public verification key via /api/v1/keys/public with a kid (Key ID) header for seamless rotation.
+ * [ ] Cryptographic Payment Verification: Verify x-paystack-signature using HMAC SHA-512 on raw request bytes in Go before fulfilling tickets, subscriptions, VTU data orders, or Amebo token packs; enforce idempotency on paystack_reference.
+ * [ ] Offline QR Key Rotation: Store the ECDSA P-256 private signing key exclusively in Render environment secrets; expose only the public verification key via /api/v1/keys/public with a kid header for seamless rotation.
+ * [ ] Go \leftrightarrow Python Internal Service Auth: Protect all /ai/v1/* endpoints on Render with an X-Internal-Secret HMAC/shared-secret middleware so external clients cannot bypass Go's token meter.
  * [ ] Cloudinary Signed Uploads & MIME Enforcement: Disable unsigned uploads in Cloudinary; restrict upload presets strictly to image/jpeg, image/png, image/webp, and application/pdf with a 5MB max file size.
- * [ ] Nodemailer & OTP Brute-Force Guard: Rate-limit /auth/verify-otp to max 5 attempts per OTP and 3 OTP requests per email per hour; store only bcrypt-hashed OTPs.
- * [ ] 6-Minute Data Retention Worker: Run an automated BullMQ dead-letter-monitored sweep every 60 seconds to hard-delete expired messages (arrived_at + 6 minutes) unless locked by an active escalations record.
+ * [ ] SMTP & OTP Brute-Force Guard: Rate-limit /auth/verify-otp to max 5 attempts per OTP and 3 OTP requests per email per hour via in-memory TTL counters; store only bcrypt-hashed OTPs.
+ * [ ] 6-Minute Data Retention Worker: Run Go's chat_purge_worker.go ticker every 30 seconds to hard-delete expired messages (arrived_at + 6 minutes) unless locked by an active escalations record.
  * [ ] PII Anonymization in Co-Passenger Manifest: Mask full surnames and phone numbers on public seat maps (displaying only First Name + Last Initial + Rank Medal) while granting full emergency manifest access exclusively to verified DE RIDE Admins during active escalations.
- * [ ] PostGIS SQL Injection Prevention: Parameterize all spatial ST_DWithin and ST_MakePoint queries via Prisma/pg parameterized bindings.

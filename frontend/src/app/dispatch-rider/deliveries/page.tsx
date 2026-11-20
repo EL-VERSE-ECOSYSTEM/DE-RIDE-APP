@@ -1,0 +1,1 @@
+export default function Dispatch(){return <main style={{padding:24}}><a href="/">← DE RIDE</a><h1>Dispatch deliveries</h1><p>Sign in to see available parcel jobs, proof of delivery and earnings.</p><a href="/login">Sign in →</a></main>}

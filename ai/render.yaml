@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: deride-ai
+    runtime: docker
+    dockerfilePath: ./ai/Dockerfile
+    healthCheckPath: /healthz

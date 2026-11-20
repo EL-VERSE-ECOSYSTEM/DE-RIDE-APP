@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: deride-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /healthz

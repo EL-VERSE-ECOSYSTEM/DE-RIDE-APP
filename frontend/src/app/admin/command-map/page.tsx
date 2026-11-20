@@ -1,0 +1,1 @@
+export default function Admin(){return <main style={{padding:24}}><a href="/">← DE RIDE</a><h1>DE RIDE command center</h1><p>Administrative access is restricted to authorized accounts.</p><a href="/login">Sign in →</a></main>}

@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS wallet_accounts(user_id uuid PRIMARY KEY REFERENCES users(id), balance_ngn bigint NOT NULL DEFAULT 0 CHECK(balance_ngn>=0));
+CREATE TABLE IF NOT EXISTS ledger_entries(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), idempotency_key text UNIQUE NOT NULL, amount_ngn bigint NOT NULL, entry_type text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS amebo_wallets(user_id uuid PRIMARY KEY REFERENCES users(id), free_tokens int NOT NULL DEFAULT 10 CHECK(free_tokens>=0), free_expires_at timestamptz NOT NULL, purchased_tokens int NOT NULL DEFAULT 0 CHECK(purchased_tokens>=0));

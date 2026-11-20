@@ -1,0 +1,1 @@
+-- No default credentials are seeded. Provision the first administrator through a controlled operator process.

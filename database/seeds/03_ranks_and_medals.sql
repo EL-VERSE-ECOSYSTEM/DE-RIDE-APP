@@ -1,0 +1,2 @@
+INSERT INTO ranks(id,role,trips_required,prize_ngn) VALUES ('starter_passenger','PASSENGER',0,0),('trusted_passenger','PASSENGER',25,500),('trusted_driver','DRIVER',100,2500),('trusted_biker','BIKER',100,2500),('trusted_dispatch','DISPATCH_RIDER',100,2500) ON CONFLICT(id) DO NOTHING;
+INSERT INTO medals(id,name,criteria) VALUES ('first_trip','First Trip','{"completed_trips":1}'),('safe_100','100 Safe Trips','{"completed_trips":100,"no_safety_reports":true}') ON CONFLICT(id) DO NOTHING;
