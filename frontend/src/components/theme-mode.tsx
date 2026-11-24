@@ -12,13 +12,13 @@ export function ThemeMode() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    const enabled = saved !== 'off';
-    const selected = enabled ? themeForHour(new Date().getHours()) : saved === 'light' ? 'light' : 'dark';
+    const enabled = saved !== 'light' && saved !== 'dark' && saved !== 'off';
+    const selected: 'light' | 'dark' = saved === 'light' || saved === 'dark' ? saved : themeForHour(new Date().getHours());
     setAutomatic(enabled);
     setTheme(selected);
     document.documentElement.dataset.theme = selected;
     const timer = window.setInterval(() => {
-      if (window.localStorage.getItem(STORAGE_KEY) !== 'off') {
+      if (!['light', 'dark', 'off'].includes(window.localStorage.getItem(STORAGE_KEY) ?? '')) {
         const next = themeForHour(new Date().getHours());
         setTheme(next);
         document.documentElement.dataset.theme = next;

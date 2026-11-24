@@ -1,0 +1,10 @@
+ALTER TABLE vtu_data_plans ADD COLUMN IF NOT EXISTS refreshed_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE vtu_data_orders ADD COLUMN IF NOT EXISTS idempotency_key text;
+ALTER TABLE vtu_data_orders ADD COLUMN IF NOT EXISTS network text;
+ALTER TABLE vtu_data_orders ADD COLUMN IF NOT EXISTS allowance text;
+ALTER TABLE vtu_data_orders ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+ALTER TABLE vtu_data_orders ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+UPDATE vtu_data_orders SET idempotency_key='legacy:'||id::text WHERE idempotency_key IS NULL;
+ALTER TABLE vtu_data_orders ALTER COLUMN idempotency_key SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS vtu_data_orders_user_idempotency_idx ON vtu_data_orders(user_id,idempotency_key);
+CREATE INDEX IF NOT EXISTS vtu_data_orders_retry_idx ON vtu_data_orders(updated_at) WHERE status='PROCESSING';

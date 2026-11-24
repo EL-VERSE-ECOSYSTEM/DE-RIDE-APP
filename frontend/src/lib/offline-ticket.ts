@@ -10,28 +10,30 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function cacheQRPublicKey(pem: string): Promise<void> {
+export async function cacheQRPublicKey(pem: string, keyId = 'active'): Promise<void> {
   const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(pem, 'active');
+    tx.objectStore(STORE).put({pem,key_id:keyId}, 'active');
+    tx.objectStore(STORE).put(pem, `key:${keyId}`);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
   db.close();
 }
 
-async function readQRPublicKey(): Promise<string> {
+async function readQRPublicKey(keyId?: string): Promise<string> {
   const configured = process.env.NEXT_PUBLIC_QR_PUBLIC_KEY_PEM;
   if (configured) {
     const pem = configured.replace(/\\n/g, '\n');
-    await cacheQRPublicKey(pem);
+    await cacheQRPublicKey(pem, process.env.NEXT_PUBLIC_QR_KEY_ID || 'active');
     return pem;
   }
   const db = await openDB();
   const pem = await new Promise<string>((resolve, reject) => {
-    const request = db.transaction(STORE, 'readonly').objectStore(STORE).get('active');
-    request.onsuccess = () => request.result ? resolve(request.result as string) : reject(new Error('Offline QR public key is not cached'));
+    const store=db.transaction(STORE, 'readonly').objectStore(STORE);
+    const request = store.get(keyId?`key:${keyId}`:'active');
+    request.onsuccess = () => {const value=request.result;if(typeof value==='string')resolve(value);else if(value?.pem)resolve(value.pem as string);else reject(new Error('Offline QR public key is not cached'));};
     request.onerror = () => reject(request.error);
   });
   db.close();
@@ -62,7 +64,7 @@ function canonicalJSON(value: unknown): string {
 }
 
 export async function verifyOfflineTicket(ticket: SignedTicket): Promise<boolean> {
-  const pem = await readQRPublicKey();
+  const pem = await readQRPublicKey(ticket.key_id);
   const encoded = pem.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, '');
   const keyBytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
   const key = await crypto.subtle.importKey('spki', toArrayBuffer(keyBytes), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
@@ -97,4 +99,18 @@ export async function queueOfflineScan(code: string): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
   db.close();
+}
+
+export type OfflineScan = { code: string; scanned_at: string };
+export async function readOfflineScans(): Promise<{key: IDBValidKey; scan: OfflineScan}[]> {
+  const db = await openDB();
+  const scans = await new Promise<{key: IDBValidKey; scan: OfflineScan}[]>((resolve, reject) => {
+    const tx=db.transaction(STORE,'readonly'), store=tx.objectStore(STORE), keys=store.getAllKeys(), values=store.getAll();
+    tx.oncomplete=()=>resolve(keys.result.flatMap((key,index)=>String(key).startsWith('scan:')?[{key,scan:values.result[index] as OfflineScan}]:[]));
+    tx.onerror=()=>reject(tx.error);
+  });
+  db.close(); return scans;
+}
+export async function removeOfflineScan(key: IDBValidKey): Promise<void> {
+  const db=await openDB(); await new Promise<void>((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});db.close();
 }

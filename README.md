@@ -1,6 +1,6 @@
 # DE RIDE ecosystem
 
-DE RIDE is a multi-role Nigerian mobility platform monorepo. It contains a Next.js PWA, Go/Fiber API, FastAPI Amebo AI service, and PostgreSQL/PostGIS migrations. The repository is a runnable foundation; integrations that require credentials and several operational flows remain unavailable until their handlers and provider configuration are completed.
+DE RIDE is a multi-role Nigerian mobility platform monorepo. It contains a Next.js PWA, Go/Fiber API, FastAPI Amebo AI service, and PostgreSQL/PostGIS migrations. Account/session flows, Cloudinary media lifecycle, Paystack wallet funding and ticket checkout, wallet ticket refunds, wallet subscription changes, wallet VTU and Amebo purchases, metered Amebo text chat, wallet-paid bike and parcel jobs with delivery OTP, signed receipts, notification inbox/push, KYC review, trip operations, trip messaging, rank milestones, and customer/admin support workflows are implemented. Remaining provider and operational limits are tracked in `backend/API.md`.
 
 ## Local development
 
@@ -20,18 +20,18 @@ The current Go API implements database health, park reads, Argon2id password reg
 
 ## Financial and safety invariants
 
-The fare helper defines the local Paystack estimate as 1.5% + ₦100, waiving ₦100 below ₦2,500 and capping the local fee at ₦2,000. Provider verification must precede settlement. Fare refund percentages are 100%, 80%, and 40%; platform and Paystack fees are excluded. These rules are documented as requirements; end-to-end checkout, settlement, refunds, and ledger handlers are not yet wired into the API.
+The fare helper defines the local Paystack estimate as 1.5% + ₦100, waiving ₦100 below ₦2,500 and capping the local fee at ₦2,000. Ticket refunds currently return 100%, 80%, or 40% of base fare to the DE RIDE wallet; platform and Paystack fees are excluded. Wallet ticket checkout/refund and subscription changes use transactional ledger writes. Paystack wallet funding settles only after provider verification.
 
-Memory cache and websocket state are process-local and must not be used as a financial source of truth. The current API does not yet expose the requested WebSocket hub or background workers. Multi-instance deployment needs shared pub/sub or sticky routing for realtime rooms.
+Memory cache and websocket state are process-local and must not be used as a financial source of truth. The API exposes authenticated trip chat and an in-process WebSocket hub, with a six-minute message purge worker. Multi-instance deployment needs shared pub/sub or sticky routing for realtime rooms. See `backend/API.md` for provider-backed flows that remain incomplete.
 
 ## Deployment
 
 Deploy `frontend/` as the Vercel project root. Set `NEXT_PUBLIC_API_BASE_URL` to the Render API URL plus `/api/v1`, for example `https://deride-api.onrender.com/api/v1`; set `NEXT_PUBLIC_WS_URL` to `wss://deride-api.onrender.com/api/v1/ws` only for authenticated realtime clients. Set `NEXT_PUBLIC_OPENFREEMAP_STYLE` to `https://tiles.openfreemap.org/styles/liberty`. These `NEXT_PUBLIC_*` values are embedded at build time, so configure them before each Vercel build.
 
-The Render blueprints are `backend/render.yaml` and `ai/render.yaml`. Both build from the repository root. The API pre-deploy command runs the included migration binary against `DATABASE_URL`; create a Neon database with PostGIS available and supply that URL to Render. Set `ALLOWED_ORIGINS` to the exact Vercel production origin. Set the same high-entropy `INTERNAL_AI_SHARED_SECRET` on both Render services, set API `AI_SERVICE_URL` to the private Render AI service URL, and set `GROQ_API_KEY` on the AI service. Configure `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` as separate secrets of at least 32 characters. SMTP credentials are required for registration OTP delivery.
+The Render blueprints are `backend/render.yaml` and `ai/render.yaml`. The API builds from the repository root; the AI service uses `ai/` as its Docker build context. The API pre-deploy command runs the included migration binary against `DATABASE_URL`; create a Neon database with PostGIS available and supply that URL to Render. Set `ALLOWED_ORIGINS` to the exact Vercel production origin. Set the same high-entropy `INTERNAL_AI_SHARED_SECRET` on both Render services, set API `AI_SERVICE_URL` to the private Render AI service URL, and set `GROQ_API_KEY` on the AI service. Configure `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` as separate secrets of at least 32 characters. SMTP credentials are required for registration OTP delivery.
 
 In-memory cache and WebSocket room membership are per Render process and have no separate cache service charge. Use a single API instance for these realtime rooms; multiple instances do not share rooms. Database migrations are deployed automatically by Render's pre-deploy command.
 
 GitHub Actions run service checks, and `.github/workflows/create-delete-neon-branch.yml` creates expiring PR branches and removes them when PRs close. Set `NEON_PROJECT_ID` as a repository variable and `NEON_API_KEY` as a repository secret.
 
-See `backend/API.md` for the implemented API surface and gaps, and `database/migrations` for schema rules. Do not enable live payments or production routing until the missing transactional handlers, provider webhooks, KYC review, and operational park data have been implemented and reviewed.
+See `backend/API.md` for implemented APIs, operational dependencies, and remaining workflow gaps; see `database/migrations` for schema rules. Configure verified park data, Cloudinary, Paystack, receipt signing, VAPID, and SMTP before production use. Do not expose unfinished provider-backed flows as completed features.

@@ -70,6 +70,40 @@ func Sign(payload Payload, privatePEM, keyID string) (SignedPayload, error) {
 	return SignedPayload{payload, base64.RawURLEncoding.EncodeToString(raw), keyID}, nil
 }
 
+func Verify(signed SignedPayload, publicPEM, expectedKeyID string, now time.Time) error {
+	if expectedKeyID != "" && signed.KeyID != expectedKeyID {
+		return errors.New("ticket key id is not active")
+	}
+	if signed.Payload.TicketID == "" || signed.Payload.TripID == "" || signed.Payload.PassengerID == "" || signed.Payload.Seat == "" || !statePattern.MatchString(signed.Payload.StateCode) || signed.Payload.ExpiresAt <= now.Unix() {
+		return errors.New("ticket claims are invalid or expired")
+	}
+	block, _ := pem.Decode([]byte(strings.ReplaceAll(publicPEM, `\n`, "\n")))
+	if block == nil {
+		return errors.New("invalid public key PEM")
+	}
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return err
+	}
+	key, ok := parsed.(*ecdsa.PublicKey)
+	if !ok || key.Curve.Params().Name != "P-256" {
+		return errors.New("ticket key must be ECDSA P-256")
+	}
+	body, err := json.Marshal(map[string]any{"ticket_id": signed.Payload.TicketID, "trip_id": signed.Payload.TripID, "passenger_id": signed.Payload.PassengerID, "seat": signed.Payload.Seat, "state_code": signed.Payload.StateCode, "iat": signed.Payload.IssuedAt, "exp": signed.Payload.ExpiresAt})
+	if err != nil {
+		return err
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(signed.Signature)
+	if err != nil || len(decoded) != 64 {
+		return errors.New("invalid ticket signature encoding")
+	}
+	digest := sha256.Sum256(body)
+	if !ecdsa.Verify(key, digest[:], new(big.Int).SetBytes(decoded[:32]), new(big.Int).SetBytes(decoded[32:])) {
+		return errors.New("invalid ticket signature")
+	}
+	return nil
+}
+
 func SignWithEnvironment(payload Payload) (SignedPayload, error) {
 	key := os.Getenv("QR_PRIVATE_KEY_PEM")
 	id := os.Getenv("QR_KEY_ID")

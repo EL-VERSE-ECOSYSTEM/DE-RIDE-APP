@@ -1,3 +1,2 @@
-import Link from 'next/link';
-export default function Passenger(){return <Portal title="Passenger" title2="Find your next ride" items={['Explore parks','Book a seat','My tickets','Bike rides','Send a parcel','Amebo AI','Buy data']} />}
-function Portal({title,title2,items}:{title:string,title2:string,items:string[]}){return <main style={{maxWidth:900,margin:'auto',padding:24}}><Link href="/">← DE RIDE</Link><p style={{color:'#10B981'}}>{title}</p><h1>{title2}</h1><p style={{color:'#9FB1B9'}}>Use your DE RIDE account to access live services.</p><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:16}}>{items.map(x=><section key={x} style={{background:'#243036',border:'1px solid #324149',padding:20,borderRadius:12}}><h2>{x}</h2><p style={{color:'#9FB1B9'}}>Sign in to load current account and service information.</p><Link href="/login" style={{color:'#F46A6A'}}>Continue →</Link></section>)}</div></main>}
+import { AppDashboard } from '@/components/app-dashboard';
+export default function Passenger(){return <AppDashboard requiredRole="PASSENGER"/>}

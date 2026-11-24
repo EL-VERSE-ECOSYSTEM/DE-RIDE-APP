@@ -2,7 +2,7 @@ services:
   - type: web
     name: deride-api
     runtime: docker
-    rootDir: .
+    rootDir: ..
     dockerfilePath: ./backend/Dockerfile
     healthCheckPath: /healthz
     preDeployCommand: MIGRATIONS_DIR=/database/migrations /migrate

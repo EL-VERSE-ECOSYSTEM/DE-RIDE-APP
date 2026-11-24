@@ -28,20 +28,22 @@ var allowedRegistrationRoles = map[string]bool{"PASSENGER": true, "DRIVER": true
 func registerAuthRoutes(v1 fiber.Router, db *pgxpool.Pool) {
 	v1.Post("/auth/register", func(c *fiber.Ctx) error {
 		var body struct {
-			Name     string `json:"name"`
-			Email    string `json:"email"`
-			Password string `json:"password"`
-			Role     string `json:"role"`
+			Name        string `json:"name"`
+			Email       string `json:"email"`
+			PhoneNumber string `json:"phone_number"`
+			Password    string `json:"password"`
+			Role        string `json:"role"`
 		}
 		if err := c.BodyParser(&body); err != nil {
 			return c.Status(400).JSON(errJSON("ERR_INVALID_REQUEST"))
 		}
 		body.Email = strings.ToLower(strings.TrimSpace(body.Email))
+		body.PhoneNumber = normalizeNigerianPhone(body.PhoneNumber)
 		body.Role = strings.ToUpper(strings.TrimSpace(body.Role))
 		if body.Role == "" {
 			body.Role = "PASSENGER"
 		}
-		if _, err := mail.ParseAddress(body.Email); err != nil || len(body.Password) < 10 || len(body.Password) > 128 || !allowedRegistrationRoles[body.Role] || len(body.Name) > 120 {
+		if _, err := mail.ParseAddress(body.Email); err != nil || body.PhoneNumber == "" || len(body.Password) < 10 || len(body.Password) > 128 || !allowedRegistrationRoles[body.Role] || len(body.Name) > 120 {
 			return c.Status(400).JSON(errJSON("ERR_INVALID_REGISTRATION"))
 		}
 		if len(os.Getenv("JWT_ACCESS_SECRET")) < 32 || len(os.Getenv("JWT_REFRESH_SECRET")) < 32 {
@@ -60,14 +62,33 @@ func registerAuthRoutes(v1 fiber.Router, db *pgxpool.Pool) {
 			return c.Status(503).JSON(errJSON("ERR_DATABASE_UNAVAILABLE"))
 		}
 		defer tx.Rollback(c.UserContext())
+		requestedRole := body.Role
+		activeRole := body.Role
+		if requestedRole == "DRIVER" || requestedRole == "DISPATCHER" || requestedRole == "PARK_OPERATOR" || requestedRole == "BIKER" || requestedRole == "DISPATCH_RIDER" {
+			activeRole = "PASSENGER"
+		}
 		var userID string
-		err = tx.QueryRow(c.UserContext(), `INSERT INTO users(email,password_hash,active_role,roles,display_name) VALUES($1,$2,$3,ARRAY[$3]::text[],$4) RETURNING id`, body.Email, digest, body.Role, strings.TrimSpace(body.Name)).Scan(&userID)
+		err = tx.QueryRow(c.UserContext(), `INSERT INTO users(email,password_hash,active_role,roles,display_name,phone_number) VALUES($1,$2,$3,ARRAY[$3]::text[],$4,$5) RETURNING id`, body.Email, digest, activeRole, strings.TrimSpace(body.Name), body.PhoneNumber).Scan(&userID)
 		if err != nil {
 			return c.Status(409).JSON(errJSON("ERR_EMAIL_ALREADY_REGISTERED"))
+		}
+		if requestedRole != activeRole {
+			if _, err = tx.Exec(c.UserContext(), `INSERT INTO role_requests(user_id,requested_role) VALUES($1,$2)`, userID, requestedRole); err != nil {
+				return c.Status(500).JSON(errJSON("ERR_ROLE_REQUEST_CREATE_FAILED"))
+			}
+			if _, err = tx.Exec(c.UserContext(), `INSERT INTO role_audit_log(user_id,actor_id,action,role,note) VALUES($1,$1,'REQUESTED',$2,'Initial account role selection')`, userID, requestedRole); err != nil {
+				return c.Status(500).JSON(errJSON("ERR_ROLE_AUDIT_FAILED"))
+			}
 		}
 		otpExpiryMinutes := envInt32("OTP_EXPIRY_MINUTES", 10)
 		if _, err = tx.Exec(c.UserContext(), `INSERT INTO email_otps(user_id,otp_hash,expires_at) VALUES($1,$2,now()+make_interval(mins=>$3))`, userID, otpHash(code), otpExpiryMinutes); err != nil {
 			return c.Status(500).JSON(errJSON("ERR_OTP_CREATE"))
+		}
+		if _, err = tx.Exec(c.UserContext(), `INSERT INTO wallet_accounts(user_id,balance_ngn) VALUES($1,0) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
+			return c.Status(500).JSON(errJSON("ERR_WALLET_INITIALIZE"))
+		}
+		if _, err = tx.Exec(c.UserContext(), `INSERT INTO amebo_wallets(user_id,free_tokens,free_expires_at,purchased_tokens) VALUES($1,10,(date_trunc('day',now() AT TIME ZONE 'Africa/Lagos') + interval '1 day') AT TIME ZONE 'Africa/Lagos',0) ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
+			return c.Status(500).JSON(errJSON("ERR_TOKEN_WALLET_INITIALIZE"))
 		}
 		if err = tx.Commit(c.UserContext()); err != nil {
 			return c.Status(500).JSON(errJSON("ERR_DATABASE_QUERY"))
@@ -190,6 +211,41 @@ func registerAuthRoutes(v1 fiber.Router, db *pgxpool.Pool) {
 		}
 		return c.JSON(response)
 	})
+	v1.Post("/auth/logout", func(c *fiber.Ctx) error {
+		var body struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.RefreshToken == "" {
+			return c.Status(400).JSON(errJSON("ERR_INVALID_REQUEST"))
+		}
+		secret := os.Getenv("JWT_REFRESH_SECRET")
+		parsed, err := jwt.Parse(body.RefreshToken, func(token *jwt.Token) (any, error) {
+			if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return []byte(secret), nil
+		})
+		if err != nil || !parsed.Valid {
+			return c.Status(401).JSON(errJSON("ERR_INVALID_REFRESH_TOKEN"))
+		}
+		claims, ok := parsed.Claims.(jwt.MapClaims)
+		if !ok || claims["token_type"] != "refresh" {
+			return c.Status(401).JSON(errJSON("ERR_INVALID_REFRESH_TOKEN"))
+		}
+		userID, _ := claims["sub"].(string)
+		jti, _ := claims["jti"].(string)
+		if userID == "" || jti == "" {
+			return c.Status(401).JSON(errJSON("ERR_INVALID_REFRESH_TOKEN"))
+		}
+		result, err := db.Exec(c.UserContext(), `UPDATE auth_refresh_tokens SET revoked_at=now() WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL`, jti, userID)
+		if err != nil {
+			return c.Status(503).JSON(errJSON("ERR_DATABASE_UNAVAILABLE"))
+		}
+		if result.RowsAffected() == 0 {
+			return c.Status(401).JSON(errJSON("ERR_REFRESH_TOKEN_REVOKED"))
+		}
+		return c.JSON(fiber.Map{"status": "SIGNED_OUT"})
+	})
 }
 
 func issueToken(c *fiber.Ctx, userID, role string, db *pgxpool.Pool) error {
@@ -227,7 +283,7 @@ func createTokenPair(ctx context.Context, tx pgx.Tx, userID, role string) (fiber
 	if err != nil {
 		return nil, err
 	}
-	access := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": userID, "role": role, "exp": accessExpiry.Unix(), "iat": now.Unix()})
+	access := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": userID, "role": role, "sid": refreshID, "exp": accessExpiry.Unix(), "iat": now.Unix()})
 	accessToken, err := access.SignedString([]byte(os.Getenv("JWT_ACCESS_SECRET")))
 	if err != nil {
 		return nil, err
@@ -296,6 +352,30 @@ func otpHash(code string) string {
 	mac.Write([]byte(code))
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
+
+func normalizeNigerianPhone(value string) string {
+	value = strings.TrimSpace(value)
+	var digits strings.Builder
+	for _, char := range value {
+		if char >= '0' && char <= '9' {
+			digits.WriteRune(char)
+			continue
+		}
+		if char == '+' || char == ' ' || char == '-' || char == '(' || char == ')' {
+			continue
+		}
+		return ""
+	}
+	number := digits.String()
+	if strings.HasPrefix(number, "0") && len(number) == 11 {
+		number = "234" + number[1:]
+	}
+	if strings.HasPrefix(number, "234") && len(number) >= 13 && len(number) <= 15 {
+		return "+" + number
+	}
+	return ""
+}
+
 func sendOTP(to, code string) error {
 	host := os.Getenv("SMTP_HOST")
 	user := os.Getenv("SMTP_USER")

@@ -15,6 +15,7 @@ export function RiderModeSwitcher({ target }: { target: 'BIKER' | 'DISPATCH_RIDE
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || result.error || 'Mode switch failed');
       sessionStorage.setItem('deride_access_token', result.access_token);
+      if (result.refresh_token) sessionStorage.setItem('deride_refresh_token', result.refresh_token);
       window.location.assign(target === 'BIKER' ? '/biker/radar' : '/dispatch-rider/deliveries');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Mode switch failed'); }
     finally { setBusy(false); }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { MapPinned } from 'lucide-react';
+import Image from 'next/image';
 import { GeocodedPlace, reverseNominatim } from './geocoding';
 
 type Park = { id: string; name: string; state_code?: string; latitude?: number | null; longitude?: number | null };
@@ -75,5 +76,5 @@ export function ParkMap({ parks, origin, destination, onReverse }: { parks: Park
     }).catch(() => setMapError('Map markers could not be displayed.'));
   }, [parks, origin, destination, mapReady]);
 
-  return <div className="maplibre-wrap"><div ref={container} className="maplibre-canvas" aria-label="Map showing DE RIDE parks and selected locations"/><div className="maplibre-attribution"><MapPinned size={12}/><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a><span>·</span><a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a><span>·</span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></div>{!mapReady && !mapError && <div className="maplibre-loading">Loading live park map…</div>}{mapError && <div className="maplibre-message">{mapError}</div>}{reverseLoading && <div className="map-reverse-status">Resolving selected location…</div>}</div>;
+  return <div className="maplibre-wrap"><div ref={container} className="maplibre-canvas" role="img" aria-label="Map showing DE RIDE parks and selected locations"/><div className="maplibre-attribution"><MapPinned size={12}/><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a><span>·</span><a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a><span>·</span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></div>{!mapReady && !mapError && <div className="maplibre-loading"><Image src="/icons/deride.svg" alt="" width={24} height={24}/><span>Loading live park map…</span></div>}{mapError && <div className="maplibre-message">{mapError}</div>}{reverseLoading && <div className="map-reverse-status">Resolving selected location…</div>}</div>;
 }
