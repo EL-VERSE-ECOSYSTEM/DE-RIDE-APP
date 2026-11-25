@@ -17,7 +17,7 @@ func registerTicketScanRoutes(v1, secure fiber.Router, db *pgxpool.Pool) {
 		if key == "" || os.Getenv("QR_KEY_ID") == "" {
 			return c.Status(503).JSON(errJSON("ERR_QR_KEY_UNAVAILABLE"))
 		}
-		return c.JSON(fiber.Map{"algorithm": "ES256", "key_id": os.Getenv("QR_KEY_ID"), "public_key_pem": key})
+		return c.JSON(fiber.Map{"algorithm": "RS256", "key_id": os.Getenv("QR_KEY_ID"), "public_key_pem": key})
 	})
 	secure.Post("/tickets/scan", func(c *fiber.Ctx) error {
 		me := c.Locals("identity").(identity)

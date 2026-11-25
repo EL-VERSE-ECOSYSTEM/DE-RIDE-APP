@@ -1,8 +1,9 @@
 package tickets
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -45,28 +46,25 @@ func Sign(payload Payload, privatePEM, keyID string) (SignedPayload, error) {
 	}
 	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		if key, e := x509.ParseECPrivateKey(block.Bytes); e == nil {
-			parsed = key
-		} else {
-			return SignedPayload{}, err
+		key, parseErr := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if parseErr != nil {
+			return SignedPayload{}, errors.New("QR key must be an RSA private key")
 		}
+		parsed = key
 	}
-	key, ok := parsed.(*ecdsa.PrivateKey)
-	if !ok || key.Curve.Params().Name != "P-256" {
-		return SignedPayload{}, errors.New("QR key must be ECDSA P-256")
+	key, ok := parsed.(*rsa.PrivateKey)
+	if !ok || key.N.BitLen() < 2048 {
+		return SignedPayload{}, errors.New("QR key must be RSA with at least 2048 bits")
 	}
 	body, err := json.Marshal(map[string]any{"ticket_id": payload.TicketID, "trip_id": payload.TripID, "passenger_id": payload.PassengerID, "seat": payload.Seat, "state_code": payload.StateCode, "iat": payload.IssuedAt, "exp": payload.ExpiresAt})
 	if err != nil {
 		return SignedPayload{}, err
 	}
 	digest := sha256.Sum256(body)
-	r, s, err := ecdsa.Sign(rand.Reader, key, digest[:])
+	raw, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
 	if err != nil {
 		return SignedPayload{}, err
 	}
-	raw := make([]byte, 64)
-	r.FillBytes(raw[:32])
-	s.FillBytes(raw[32:])
 	return SignedPayload{payload, base64.RawURLEncoding.EncodeToString(raw), keyID}, nil
 }
 
@@ -85,20 +83,20 @@ func Verify(signed SignedPayload, publicPEM, expectedKeyID string, now time.Time
 	if err != nil {
 		return err
 	}
-	key, ok := parsed.(*ecdsa.PublicKey)
-	if !ok || key.Curve.Params().Name != "P-256" {
-		return errors.New("ticket key must be ECDSA P-256")
+	key, ok := parsed.(*rsa.PublicKey)
+	if !ok || key.N.BitLen() < 2048 {
+		return errors.New("ticket key must be RSA with at least 2048 bits")
 	}
 	body, err := json.Marshal(map[string]any{"ticket_id": signed.Payload.TicketID, "trip_id": signed.Payload.TripID, "passenger_id": signed.Payload.PassengerID, "seat": signed.Payload.Seat, "state_code": signed.Payload.StateCode, "iat": signed.Payload.IssuedAt, "exp": signed.Payload.ExpiresAt})
 	if err != nil {
 		return err
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(signed.Signature)
-	if err != nil || len(decoded) != 64 {
+	if err != nil || len(decoded) != key.Size() {
 		return errors.New("invalid ticket signature encoding")
 	}
 	digest := sha256.Sum256(body)
-	if !ecdsa.Verify(key, digest[:], new(big.Int).SetBytes(decoded[:32]), new(big.Int).SetBytes(decoded[32:])) {
+	if err := rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], decoded); err != nil {
 		return errors.New("invalid ticket signature")
 	}
 	return nil

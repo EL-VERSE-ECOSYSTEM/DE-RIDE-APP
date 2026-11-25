@@ -178,18 +178,18 @@ func main() {
 		grant := ameboDailyGrant(c.UserContext(), db, me.UserID)
 		_, _ = db.Exec(c.UserContext(), `INSERT INTO amebo_wallets(user_id,free_tokens,free_expires_at,purchased_tokens) VALUES($1,$2,(date_trunc('day',now() AT TIME ZONE 'Africa/Lagos')+interval '1 day') AT TIME ZONE 'Africa/Lagos',0) ON CONFLICT(user_id) DO NOTHING`, me.UserID, grant)
 		_, _ = db.Exec(c.UserContext(), `UPDATE amebo_wallets SET free_tokens=$2,free_expires_at=(date_trunc('day',now() AT TIME ZONE 'Africa/Lagos')+interval '1 day') AT TIME ZONE 'Africa/Lagos' WHERE user_id=$1 AND free_expires_at<=now()`, me.UserID, grant)
-		var id, email, displayName, role string
+		var id, email, displayName, role, languagePref string
 		var roles []string
 		var emailVerified, bikerApproved, dispatchApproved, gpsOptIn bool
 		var createdAt time.Time
 		var balance int64
 		var freeTokens, purchasedTokens int
 		var freeExpiresAt *time.Time
-		err := db.QueryRow(c.UserContext(), `SELECT u.id,u.email,u.display_name,u.active_role,u.roles,u.email_verified,u.biker_approved,u.dispatch_approved,u.gps_opt_in,u.created_at,COALESCE(w.balance_ngn,0),COALESCE(a.free_tokens,0),COALESCE(a.purchased_tokens,0),a.free_expires_at FROM users u LEFT JOIN wallet_accounts w ON w.user_id=u.id LEFT JOIN amebo_wallets a ON a.user_id=u.id WHERE u.id=$1`, me.UserID).Scan(&id, &email, &displayName, &role, &roles, &emailVerified, &bikerApproved, &dispatchApproved, &gpsOptIn, &createdAt, &balance, &freeTokens, &purchasedTokens, &freeExpiresAt)
+		err := db.QueryRow(c.UserContext(), `SELECT u.id,u.email,u.display_name,u.active_role,u.roles,u.email_verified,u.biker_approved,u.dispatch_approved,u.gps_opt_in,u.language_pref,u.created_at,COALESCE(w.balance_ngn,0),COALESCE(a.free_tokens,0),COALESCE(a.purchased_tokens,0),a.free_expires_at FROM users u LEFT JOIN wallet_accounts w ON w.user_id=u.id LEFT JOIN amebo_wallets a ON a.user_id=u.id WHERE u.id=$1`, me.UserID).Scan(&id, &email, &displayName, &role, &roles, &emailVerified, &bikerApproved, &dispatchApproved, &gpsOptIn, &languagePref, &createdAt, &balance, &freeTokens, &purchasedTokens, &freeExpiresAt)
 		if err != nil {
 			return c.Status(503).JSON(errJSON("ERR_PROFILE_UNAVAILABLE"))
 		}
-		return c.JSON(fiber.Map{"id": id, "email": email, "display_name": displayName, "active_role": role, "roles": roles, "email_verified": emailVerified, "biker_approved": bikerApproved, "dispatch_approved": dispatchApproved, "gps_opt_in": gpsOptIn, "created_at": createdAt, "wallet_balance_ngn": balance, "amebo_free_tokens": freeTokens, "amebo_purchased_tokens": purchasedTokens, "amebo_free_expires_at": freeExpiresAt})
+		return c.JSON(fiber.Map{"id": id, "email": email, "display_name": displayName, "active_role": role, "roles": roles, "email_verified": emailVerified, "biker_approved": bikerApproved, "dispatch_approved": dispatchApproved, "gps_opt_in": gpsOptIn, "language_pref": languagePref, "created_at": createdAt, "wallet_balance_ngn": balance, "amebo_free_tokens": freeTokens, "amebo_purchased_tokens": purchasedTokens, "amebo_free_expires_at": freeExpiresAt})
 	})
 	secure.Patch("/me/preferences", func(c *fiber.Ctx) error {
 		me := c.Locals("identity").(identity)

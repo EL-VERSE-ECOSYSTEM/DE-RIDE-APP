@@ -67,11 +67,11 @@ export async function verifyOfflineTicket(ticket: SignedTicket): Promise<boolean
   const pem = await readQRPublicKey(ticket.key_id);
   const encoded = pem.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, '');
   const keyBytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
-  const key = await crypto.subtle.importKey('spki', toArrayBuffer(keyBytes), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+  const key = await crypto.subtle.importKey('spki', toArrayBuffer(keyBytes), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
   const canonical = toArrayBuffer(new TextEncoder().encode(canonicalJSON(ticket.payload)));
   const expiresAt = ticket.payload.exp;
   if (typeof expiresAt !== 'number' || expiresAt <= Math.floor(Date.now() / 1000)) return false;
-  return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, toArrayBuffer(decodeBase64URL(ticket.signature)), canonical);
+  return crypto.subtle.verify({ name: 'RSASSA-PKCS1-v1_5' }, key, toArrayBuffer(decodeBase64URL(ticket.signature)), canonical);
 }
 
 export function isValidManualTicketCode(code: string): boolean {

@@ -11,5 +11,6 @@ if (envFile) loadDotenv({ path: envFile, override: false });
 
 const config: NextConfig = {
   reactStrictMode: true,
+  experimental: { cpus: 2 },
 };
 export default config;

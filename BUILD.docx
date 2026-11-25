@@ -136,7 +136,7 @@ Token Economy & Expiration Mechanics
    * Deduction Order: Go backend always deducts from daily_free_tokens first (when now() < daily_tokens_expires_at) before deducting from purchased_tokens.
 6. Complete Tech & Design Stack (Zero External Cache Cost Under 5,000 Users)
  * Design & Prototyping: Figma (Dark/High-Contrast tokens), LottieFiles (micro-animations for QR scan success & radar pulses), Lucide Icons + Custom SVG Nigerian Transit & Telco Icon Set.
- * Frontend PWA (frontend/ on Vercel): Next.js 15 (App Router, TypeScript), Tailwind CSS, Zustand (client state & active Biker/Dispatch mode), IndexedDB / Dexie.js (offline QR ticket vault & ECDSA public key cache), @vis.gl/react-google-maps (Google Maps JS API), html5-qrcode (camera scanner).
+ * Frontend PWA (frontend/ on Vercel): Next.js 15 (App Router, TypeScript), Tailwind CSS, active Biker/Dispatch mode, IndexedDB offline scan queue and RSA public-key cache, MapLibre GL with OpenFreeMap dark tiles, QR camera scanner.
  * Backend API & Real-Time Engine (backend/ on Render): Go 1.23+ (Fiber v2), gorilla/websocket / gofiber/contrib/websocket (goroutine rooms for GPS, chat & SOS), pgx/v5 (Neon Postgres driver), and an In-App Memory CacheStore (sync.RWMutex + TTL janitor) + Go ticker workers (zero external Redis/BullMQ cost until 5,000+ users; interface-ready for Redis drop-in later).
  * AI Microservice (ai/ on Render): Python 3.12+ (FastAPI + Uvicorn) + groq async Python SDK (llama-3.3-70b-versatile & whisper-large-v3).
  * Database & Spatial (database/ on Neon): Neon Serverless PostgreSQL 16 with PostGIS extension (nationwide 36-state + FCT park geofencing & radius queries).
@@ -255,7 +255,7 @@ CREATE TABLE tickets (
     passenger_id UUID REFERENCES users(id),
     seat_number INT NOT NULL,
     manual_ticket_code VARCHAR(15) UNIQUE NOT NULL, -- e.g., DR-LA-8492-X7
-    qr_signed_payload TEXT NOT NULL, -- ECDSA P-256 signed JWT for offline verification
+   qr_signed_payload TEXT NOT NULL, -- RSA-2048 PKCS#1 v1.5 / SHA-256 signed JSON envelope
     base_fare NUMERIC(10, 2) NOT NULL,
     platform_fee NUMERIC(10, 2) DEFAULT 20.00,
     paystack_fee NUMERIC(10, 2) NOT NULL,
@@ -352,7 +352,7 @@ Motor parks across Nigeria frequently experience cellular dead zones. Tickets ve
    * Example: DR-OG-4918-K3 (Ogun State) or DR-LA-7302-M9 (Lagos State).
    * Checksum Logic: Last 2 characters are Base32-encoded Mod-97 checksum of (trip_id + seat_number + passenger_id_prefix) so a Driver/Dispatcher can verify structural validity without internet.
  * Cryptographic QR Payload:
-   * When Paystack or Wallet confirms payment, the Go backend signs a compact JSON payload using ES256 (ECDSA P-256 Private Key):
+   * When Paystack or Wallet confirms payment, the Go backend signs a compact JSON payload using RS256 (RSA-2048 private key):
      {
   "tid": "9f8c2a1b",
   "tkt": "DR-LA-7302-M9",
@@ -361,7 +361,7 @@ Motor parks across Nigeria frequently experience cellular dead zones. Tickets ve
   "exp": 1795003200
 }
 
-   * Offline Verification Flow: The Driver/Dispatcher PWA caches the DE RIDE ES256 Public Key in IndexedDB upon login. When scanning a passenger's QR code offline, the app verifies the cryptographic signature locally via WebCrypto API, checks the local trip manifest for duplicate seat scans, marks scanned_offline = true in IndexedDB, and syncs to Go/PostgreSQL automatically via Service Worker Background Sync once connectivity returns.
+   * Offline Verification Flow: The Driver/Dispatcher PWA caches the DE RIDE RS256 Public Key in IndexedDB. When scanning a passenger's QR code offline, the app verifies the cryptographic signature locally via WebCrypto API, queues the scan in IndexedDB, and syncs while the scanner PWA is open when connectivity returns.
 9. Complete Page & Feature Inventory (Zero Mock Data — Real Production Content & Fields)
  * Authentication & Onboarding (/auth/register, /auth/login, /auth/verify-otp):
    * Role Selector Cards (Passenger, Bus Driver, Bike Rider, Dispatch Rider, Park Dispatcher, Park Operator), Full Legal Name, Email, +234 Phone Number, Password, Language (EN, YO, HA, IG, PCM), and explicit GPS Data/Battery Opt-In & Non-Refundable Fee Policy checkboxes. Dispatches 6-digit OTP via elversetechnologies@gmail.com.
@@ -403,7 +403,7 @@ Motor parks across Nigeria frequently experience cellular dead zones. Tickets ve
 | Method | Endpoint | Auth | Request Payload / Description |
 |---|---|---|---|
 | POST | /api/v1/tickets/checkout | Passenger | { trip_id, seat_number, payment_method: 'PAYSTACK' | 'WALLET' } — Computes Base + ₦20 + Paystack Fee. |
-| POST | /api/v1/tickets/scan | Driver / Dispatcher | { qr_payload?, manual_code?, scanned_at, offline_sync: boolean } — Validates ECDSA signature and marks BOARDED. |
+| POST | /api/v1/tickets/scan | Driver / Dispatcher | { qr_payload?, manual_code?, scanned_at, offline_sync: boolean } — Validates RS256 signature and marks BOARDED. |
 | POST | /api/v1/tickets/:ticketId/refund | Passenger | { claim_type: 'CANCEL' | 'LATE_ARRIVAL' | 'NO_SHOW', destination: 'WALLET' | 'BANK_ACCOUNT', bank_details? } — Computes 100% / 80% / 40% of Base Fare only. |
 | GET | /api/v1/data/plans | Bearer | Query: ?network=MTN — Returns cached affordable data bundles from VTU_BASE_URL. |
 | POST | /api/v1/data/purchase | Bearer | { network, plan_code, beneficiary_phone, payment_method } — Vends mobile data via VTU_BASE_URL + VTU_API_KEY. |
@@ -433,7 +433,7 @@ Motor parks across Nigeria frequently experience cellular dead zones. Tickets ve
 | 429 | ERR_CAPACITY_COOLDOWN_ACTIVE | Operator/Driver/Dispatcher attempts to edit bus seats or departure time before the 120-second lock expires. |
 12. Production Security & Compliance Checklist
  * [ ] Cryptographic Payment Verification: Verify x-paystack-signature using HMAC SHA-512 on raw request bytes in Go before fulfilling tickets, subscriptions, VTU data orders, or Amebo token packs; enforce idempotency on paystack_reference.
- * [ ] Offline QR Key Rotation: Store the ECDSA P-256 private signing key exclusively in Render environment secrets; expose only the public verification key via /api/v1/keys/public with a kid header for seamless rotation.
+ * [ ] Offline QR Key Rotation: Store the RSA private signing key exclusively in Render environment secrets; expose only the public verification key via /api/v1/keys/public with a key ID for rotation.
  * [ ] Go \leftrightarrow Python Internal Service Auth: Protect all /ai/v1/* endpoints on Render with an X-Internal-Secret HMAC/shared-secret middleware so external clients cannot bypass Go's token meter.
  * [ ] Cloudinary Signed Uploads & MIME Enforcement: Disable unsigned uploads in Cloudinary; restrict upload presets strictly to image/jpeg, image/png, image/webp, and application/pdf with a 5MB max file size.
  * [ ] SMTP & OTP Brute-Force Guard: Rate-limit /auth/verify-otp to max 5 attempts per OTP and 3 OTP requests per email per hour via in-memory TTL counters; store only bcrypt-hashed OTPs.

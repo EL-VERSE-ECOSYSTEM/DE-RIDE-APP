@@ -2,7 +2,8 @@ services:
   - type: web
     name: deride-api
     runtime: docker
-    rootDir: ..
+    # The Dockerfile copies both backend/ and database/, so its context must be the repo root.
+    dockerContext: .
     dockerfilePath: ./backend/Dockerfile
     healthCheckPath: /healthz
     preDeployCommand: MIGRATIONS_DIR=/database/migrations /migrate
@@ -16,10 +17,18 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: AI_SERVICE_URL
-        sync: false
+        value: https://de-ride-app-ai.onrender.com
       - key: INTERNAL_AI_SHARED_SECRET
         sync: false
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
         sync: false
+      - key: QR_PRIVATE_KEY_PEM
+        sync: false
+      - key: QR_PUBLIC_KEY_PEM
+        sync: false
+      - key: QR_KEY_ID
+        value: deride-rsa2048-20261125
+      - key: PUBLIC_API_URL
+        value: https://de-ride-app.onrender.com

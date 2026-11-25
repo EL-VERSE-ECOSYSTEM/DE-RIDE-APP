@@ -5,9 +5,15 @@ dist/
 coverage/
 .env*
 !.env.example
+!.env.production.example
 __pycache__/
 .pytest_cache/
 *.py[cod]
 *.test
 backend/bin/
 .neon
+/private_key.pem
+/public_key.pem
+
+/deployment/qr-render.env
+/deployment/geocoding/.env

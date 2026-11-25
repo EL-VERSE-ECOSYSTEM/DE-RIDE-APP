@@ -28,11 +28,15 @@ var allowedRegistrationRoles = map[string]bool{"PASSENGER": true, "DRIVER": true
 func registerAuthRoutes(v1 fiber.Router, db *pgxpool.Pool) {
 	v1.Post("/auth/register", func(c *fiber.Ctx) error {
 		var body struct {
-			Name        string `json:"name"`
-			Email       string `json:"email"`
-			PhoneNumber string `json:"phone_number"`
-			Password    string `json:"password"`
-			Role        string `json:"role"`
+			Name            string `json:"name"`
+			Email           string `json:"email"`
+			PhoneNumber     string `json:"phone_number"`
+			Password        string `json:"password"`
+			Role            string `json:"role"`
+			LanguagePref    string `json:"language_pref"`
+			GPSOptIn        bool   `json:"gps_opt_in"`
+			TermsAccepted   bool   `json:"terms_accepted"`
+			PrivacyAccepted bool   `json:"privacy_accepted"`
 		}
 		if err := c.BodyParser(&body); err != nil {
 			return c.Status(400).JSON(errJSON("ERR_INVALID_REQUEST"))
@@ -40,10 +44,14 @@ func registerAuthRoutes(v1 fiber.Router, db *pgxpool.Pool) {
 		body.Email = strings.ToLower(strings.TrimSpace(body.Email))
 		body.PhoneNumber = normalizeNigerianPhone(body.PhoneNumber)
 		body.Role = strings.ToUpper(strings.TrimSpace(body.Role))
+		body.LanguagePref = strings.ToUpper(strings.TrimSpace(body.LanguagePref))
 		if body.Role == "" {
 			body.Role = "PASSENGER"
 		}
-		if _, err := mail.ParseAddress(body.Email); err != nil || body.PhoneNumber == "" || len(body.Password) < 10 || len(body.Password) > 128 || !allowedRegistrationRoles[body.Role] || len(body.Name) > 120 {
+		if body.LanguagePref == "" {
+			body.LanguagePref = "EN"
+		}
+		if _, err := mail.ParseAddress(body.Email); err != nil || body.PhoneNumber == "" || len(body.Password) < 10 || len(body.Password) > 128 || !allowedRegistrationRoles[body.Role] || len(body.Name) > 120 || !map[string]bool{"EN": true, "YO": true, "HA": true, "IG": true, "PCM": true}[body.LanguagePref] || !body.TermsAccepted || !body.PrivacyAccepted {
 			return c.Status(400).JSON(errJSON("ERR_INVALID_REGISTRATION"))
 		}
 		if len(os.Getenv("JWT_ACCESS_SECRET")) < 32 || len(os.Getenv("JWT_REFRESH_SECRET")) < 32 {
@@ -68,7 +76,7 @@ func registerAuthRoutes(v1 fiber.Router, db *pgxpool.Pool) {
 			activeRole = "PASSENGER"
 		}
 		var userID string
-		err = tx.QueryRow(c.UserContext(), `INSERT INTO users(email,password_hash,active_role,roles,display_name,phone_number) VALUES($1,$2,$3,ARRAY[$3]::text[],$4,$5) RETURNING id`, body.Email, digest, activeRole, strings.TrimSpace(body.Name), body.PhoneNumber).Scan(&userID)
+		err = tx.QueryRow(c.UserContext(), `INSERT INTO users(email,password_hash,active_role,roles,display_name,phone_number,language_pref,gps_opt_in,terms_accepted_at,privacy_accepted_at) VALUES($1,$2,$3,ARRAY[$3]::text[],$4,$5,$6,$7,now(),now()) RETURNING id`, body.Email, digest, activeRole, strings.TrimSpace(body.Name), body.PhoneNumber, body.LanguagePref, body.GPSOptIn).Scan(&userID)
 		if err != nil {
 			return c.Status(409).JSON(errJSON("ERR_EMAIL_ALREADY_REGISTERED"))
 		}

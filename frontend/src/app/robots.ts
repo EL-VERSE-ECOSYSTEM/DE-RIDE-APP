@@ -1,0 +1,2 @@
+import type {MetadataRoute} from 'next';
+export default function robots():MetadataRoute.Robots{const base=(process.env.NEXT_PUBLIC_APP_URL||'http://localhost:3000').replace(/\/$/,'');return{rules:{userAgent:'*',allow:['/','/register/','/terms','/privacy','/refund-policy'],disallow:['/admin/','/driver/','/biker/','/dispatch-rider/','/park-operator/','/passenger/','/wallet','/tickets','/messages','/support','/settings','/transactions','/notifications','/subscriptions','/data','/amebo']},sitemap:`${base}/sitemap.xml`}}

@@ -1,0 +1,59 @@
+services:
+  nominatim:
+    image: mediagis/nominatim:5.3
+    restart: unless-stopped
+    environment:
+      PBF_URL: https://download.geofabrik.de/africa/nigeria-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/africa/nigeria-updates/
+      REPLICATION_UPDATE_INTERVAL: 86400
+      UPDATE_MODE: none
+      IMPORT_STYLE: address
+      IMPORT_WIKIPEDIA: "false"
+      THREADS: 4
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:?Set NOMINATIM_PASSWORD in deployment/geocoding/.env}
+    volumes:
+      - nominatim-db:/var/lib/postgresql/16/main
+      - nominatim-flatnode:/nominatim/flatnode
+    shm_size: 1gb
+    expose: ["8080"]
+    networks: [geocoder]
+
+  photon:
+    build:
+      context: ./photon
+    environment:
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:?Set NOMINATIM_PASSWORD in deployment/geocoding/.env}
+    restart: unless-stopped
+    volumes:
+      - photon-data:/photon/photon_data
+    expose: ["2322"]
+    networks: [geocoder]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - nominatim
+      - photon
+    environment:
+      GEOCODER_DOMAIN: ${GEOCODER_DOMAIN:?Set GEOCODER_DOMAIN in deployment/geocoding/.env}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in deployment/geocoding/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [geocoder]
+
+networks:
+  geocoder:
+
+volumes:
+  nominatim-db:
+  nominatim-flatnode:
+  photon-data:
+  caddy-data:
+  caddy-config:

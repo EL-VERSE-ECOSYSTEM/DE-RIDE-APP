@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -110,7 +112,86 @@ func registerTripRoutes(secure fiber.Router, db *pgxpool.Pool) {
 		if err = rows.Err(); err != nil {
 			return c.Status(500).JSON(errJSON("ERR_DATABASE_QUERY"))
 		}
-		return c.JSON(fiber.Map{"capacity": capacity, "taken_seats": taken})
+		rows.Close()
+		rows, err = db.Query(c.UserContext(), `SELECT seat_code FROM trip_unavailable_seats WHERE trip_id=$1 ORDER BY seat_code`, c.Params("tripID"))
+		if err != nil {
+			return c.Status(503).JSON(errJSON("ERR_SEAT_MAP_UNAVAILABLE"))
+		}
+		defer rows.Close()
+		unavailable := make([]string, 0)
+		for rows.Next() {
+			var code string
+			if err = rows.Scan(&code); err != nil {
+				return c.Status(500).JSON(errJSON("ERR_DATABASE_QUERY"))
+			}
+			unavailable = append(unavailable, code)
+		}
+		if err = rows.Err(); err != nil {
+			return c.Status(500).JSON(errJSON("ERR_DATABASE_QUERY"))
+		}
+		return c.JSON(fiber.Map{"capacity": capacity, "taken_seats": taken, "unavailable_seats": unavailable})
+	})
+	secure.Put("/trips/:tripID/seats/:seatCode/unavailable", func(c *fiber.Ctx) error {
+		me := c.Locals("identity").(identity)
+		if me.Role != "DRIVER" && me.Role != "DISPATCHER" && me.Role != "PARK_OPERATOR" && me.Role != "ADMIN" {
+			return c.Status(403).JSON(errJSON("ERR_ROLE_FORBIDDEN"))
+		}
+		var req struct {
+			Unavailable bool   `json:"unavailable"`
+			Reason      string `json:"reason"`
+		}
+		if c.BodyParser(&req) != nil {
+			return c.Status(400).JSON(errJSON("ERR_INVALID_REQUEST"))
+		}
+		if req.Reason == "" {
+			req.Reason = "UNAVAILABLE"
+		}
+		if req.Reason != "UNAVAILABLE" && req.Reason != "DAMAGED" && req.Reason != "ACCESSIBILITY" {
+			return c.Status(422).JSON(errJSON("ERR_SEAT_REASON_INVALID"))
+		}
+		var seatNumber, capacity int
+		if _, err := fmt.Sscanf(c.Params("seatCode"), "%d", &seatNumber); err != nil || seatNumber < 1 {
+			return c.Status(422).JSON(errJSON("ERR_SEAT_CODE_INVALID"))
+		}
+		tx, err := db.Begin(c.UserContext())
+		if err != nil {
+			return c.Status(503).JSON(errJSON("ERR_DATABASE_UNAVAILABLE"))
+		}
+		defer tx.Rollback(c.UserContext())
+		var authorized bool
+		err = tx.QueryRow(c.UserContext(), `SELECT capacity,($2='ADMIN' OR driver_id=$3 OR ($2='DISPATCHER' AND EXISTS(SELECT 1 FROM trip_operator_assignments a WHERE a.trip_id=trips.id AND a.user_id=$3)) OR ($2='PARK_OPERATOR' AND EXISTS(SELECT 1 FROM park_operator_assignments a WHERE a.park_id=trips.park_id AND a.user_id=$3))) FROM trips WHERE id=$1 FOR UPDATE`, c.Params("tripID"), me.Role, me.UserID).Scan(&capacity, &authorized)
+		if err != nil {
+			return c.Status(404).JSON(errJSON("ERR_TRIP_NOT_FOUND"))
+		}
+		if !authorized {
+			return c.Status(403).JSON(errJSON("ERR_TRIP_ACCESS_DENIED"))
+		}
+		if seatNumber > capacity {
+			return c.Status(422).JSON(errJSON("ERR_SEAT_CODE_INVALID"))
+		}
+		seatCode := strings.TrimSpace(c.Params("seatCode"))
+		if strconv.Itoa(seatNumber) != seatCode {
+			return c.Status(422).JSON(errJSON("ERR_SEAT_CODE_INVALID"))
+		}
+		if req.Unavailable {
+			var sold bool
+			if err = tx.QueryRow(c.UserContext(), `SELECT EXISTS(SELECT 1 FROM tickets WHERE trip_id=$1 AND seat_code=$2 AND status NOT IN ('CANCELLED','REFUNDED'))`, c.Params("tripID"), seatCode).Scan(&sold); err != nil {
+				return c.Status(503).JSON(errJSON("ERR_SEAT_LOOKUP_FAILED"))
+			}
+			if sold {
+				return c.Status(409).JSON(errJSON("ERR_SEAT_UNAVAILABLE"))
+			}
+			_, err = tx.Exec(c.UserContext(), `INSERT INTO trip_unavailable_seats(trip_id,seat_code,reason,set_by) VALUES($1,$2,$3,$4) ON CONFLICT(trip_id,seat_code) DO UPDATE SET reason=EXCLUDED.reason,set_by=EXCLUDED.set_by,created_at=now()`, c.Params("tripID"), seatCode, req.Reason, me.UserID)
+		} else {
+			_, err = tx.Exec(c.UserContext(), `DELETE FROM trip_unavailable_seats WHERE trip_id=$1 AND seat_code=$2`, c.Params("tripID"), seatCode)
+		}
+		if err != nil {
+			return c.Status(503).JSON(errJSON("ERR_SEAT_UPDATE_FAILED"))
+		}
+		if err = tx.Commit(c.UserContext()); err != nil {
+			return c.Status(500).JSON(errJSON("ERR_SEAT_UPDATE_FAILED"))
+		}
+		return c.JSON(fiber.Map{"trip_id": c.Params("tripID"), "seat_code": seatCode, "unavailable": req.Unavailable, "reason": req.Reason})
 	})
 	secure.Post("/trips", func(c *fiber.Ctx) error {
 		me := c.Locals("identity").(identity)

@@ -1,0 +1,21 @@
+{$GEOCODER_DOMAIN} {
+	@preflight method OPTIONS
+
+	route /photon/* {
+		header Access-Control-Allow-Origin "{$FRONTEND_ORIGIN}"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Accept, Content-Type"
+		respond @preflight "" 204
+		uri strip_prefix /photon
+		reverse_proxy photon:2322
+	}
+
+	route /nominatim/* {
+		header Access-Control-Allow-Origin "{$FRONTEND_ORIGIN}"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Accept, Content-Type"
+		respond @preflight "" 204
+		uri strip_prefix /nominatim
+		reverse_proxy nominatim:8080
+	}
+}

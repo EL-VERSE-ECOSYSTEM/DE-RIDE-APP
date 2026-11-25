@@ -31,6 +31,7 @@ export async function signOut(): Promise<void> {
 export type AccountProfile = {
   id: string; email: string; display_name: string; active_role: string; roles: string[];
   email_verified: boolean; biker_approved: boolean; dispatch_approved: boolean; gps_opt_in: boolean;
+  language_pref: string;
   created_at: string; wallet_balance_ngn: number; amebo_free_tokens: number;
   amebo_purchased_tokens: number; amebo_free_expires_at: string | null;
 };

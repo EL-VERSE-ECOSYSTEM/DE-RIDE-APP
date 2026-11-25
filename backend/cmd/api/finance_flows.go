@@ -97,6 +97,10 @@ func registerFinanceFlowRoutes(secure fiber.Router, db *pgxpool.Pool) {
 		if tripStatus != "OPEN" || !departure.After(time.Now()) {
 			return c.Status(409).JSON(errJSON("ERR_TRIP_NOT_BOOKABLE"))
 		}
+		seatNumber, seatErr := strconv.Atoi(req.Seat)
+		if seatErr != nil || seatNumber < 1 || seatNumber > capacity || strconv.Itoa(seatNumber) != req.Seat {
+			return c.Status(422).JSON(errJSON("ERR_SEAT_CODE_INVALID"))
+		}
 		var existingID, existingCode, existingTrip, existingSeat, existingStatus string
 		var existingTotal int64
 		err = tx.QueryRow(c.UserContext(), `SELECT id,manual_code,total_paid_ngn,trip_id,seat_code,status FROM tickets WHERE passenger_id=$1 AND checkout_key=$2`, me.UserID, key).Scan(&existingID, &existingCode, &existingTotal, &existingTrip, &existingSeat, &existingStatus)
@@ -133,6 +137,13 @@ func registerFinanceFlowRoutes(secure fiber.Router, db *pgxpool.Pool) {
 		}
 		if err != pgx.ErrNoRows {
 			return c.Status(503).JSON(errJSON("ERR_TICKET_LOOKUP_FAILED"))
+		}
+		var unavailable bool
+		if err = tx.QueryRow(c.UserContext(), `SELECT EXISTS(SELECT 1 FROM trip_unavailable_seats WHERE trip_id=$1 AND seat_code=$2)`, req.TripID, req.Seat).Scan(&unavailable); err != nil {
+			return c.Status(503).JSON(errJSON("ERR_SEAT_LOOKUP_FAILED"))
+		}
+		if unavailable {
+			return c.Status(409).JSON(errJSON("ERR_SEAT_UNAVAILABLE"))
 		}
 		var taken int
 		if err = tx.QueryRow(c.UserContext(), `SELECT count(*) FROM tickets WHERE trip_id=$1 AND seat_code=$2 AND status NOT IN ('CANCELLED','REFUNDED')`, req.TripID, req.Seat).Scan(&taken); err != nil {
@@ -332,7 +343,7 @@ func registerFinanceFlowRoutes(secure fiber.Router, db *pgxpool.Pool) {
 	secure.Post("/subscriptions/upgrade", func(c *fiber.Ctx) error {
 		me := c.Locals("identity").(identity)
 		var req struct {
-			PlanID string `json:"plan_id"`
+			PlanID        string `json:"plan_id"`
 			PaymentMethod string `json:"payment_method"`
 		}
 		if err := c.BodyParser(&req); err != nil {
@@ -340,7 +351,9 @@ func registerFinanceFlowRoutes(secure fiber.Router, db *pgxpool.Pool) {
 		}
 		req.PlanID = strings.TrimSpace(req.PlanID)
 		req.PaymentMethod = strings.ToUpper(strings.TrimSpace(req.PaymentMethod))
-		if req.PaymentMethod == "" { req.PaymentMethod = "WALLET" }
+		if req.PaymentMethod == "" {
+			req.PaymentMethod = "WALLET"
+		}
 		key := strings.TrimSpace(c.Get("Idempotency-Key"))
 		if req.PlanID == "" {
 			return c.Status(422).JSON(errJSON("ERR_SUBSCRIPTION_PLAN_REQUIRED"))
@@ -382,14 +395,22 @@ func registerFinanceFlowRoutes(secure fiber.Router, db *pgxpool.Pool) {
 		}
 		if price > 0 && req.PaymentMethod == "PAYSTACK" {
 			_ = tx.Rollback(c.UserContext())
-			if os.Getenv("PAYSTACK_SECRET_KEY") == "" || !receiptSigningConfigured() { return c.Status(503).JSON(errJSON("ERR_PAYMENT_SERVICE_NOT_CONFIGURED")) }
+			if os.Getenv("PAYSTACK_SECRET_KEY") == "" || !receiptSigningConfigured() {
+				return c.Status(503).JSON(errJSON("ERR_PAYMENT_SERVICE_NOT_CONFIGURED"))
+			}
 			var email string
-			if err = db.QueryRow(c.UserContext(), `SELECT email FROM users WHERE id=$1 AND email_verified=true`, me.UserID).Scan(&email); err != nil { return c.Status(403).JSON(errJSON("ERR_EMAIL_VERIFICATION_REQUIRED")) }
-			id,reference,authURL,accessCode,intentErr := createPurposePaystackIntent(c.UserContext(),db,me.UserID,email,"SUBSCRIPTION",key,price*100,map[string]any{"plan_id":req.PlanID})
-			if intentErr != nil { return c.Status(409).JSON(errJSON("ERR_PAYSTACK_INITIALIZE_FAILED")) }
-			return c.Status(201).JSON(fiber.Map{"payment_intent_id":id,"reference":reference,"authorization_url":authURL,"access_code":accessCode,"plan_id":req.PlanID,"status":"PENDING"})
+			if err = db.QueryRow(c.UserContext(), `SELECT email FROM users WHERE id=$1 AND email_verified=true`, me.UserID).Scan(&email); err != nil {
+				return c.Status(403).JSON(errJSON("ERR_EMAIL_VERIFICATION_REQUIRED"))
+			}
+			id, reference, authURL, accessCode, intentErr := createPurposePaystackIntent(c.UserContext(), db, me.UserID, email, "SUBSCRIPTION", key, price*100, map[string]any{"plan_id": req.PlanID})
+			if intentErr != nil {
+				return c.Status(409).JSON(errJSON("ERR_PAYSTACK_INITIALIZE_FAILED"))
+			}
+			return c.Status(201).JSON(fiber.Map{"payment_intent_id": id, "reference": reference, "authorization_url": authURL, "access_code": accessCode, "plan_id": req.PlanID, "status": "PENDING"})
 		}
-		if req.PaymentMethod != "WALLET" { return c.Status(422).JSON(errJSON("ERR_PAYMENT_METHOD_INVALID")) }
+		if req.PaymentMethod != "WALLET" {
+			return c.Status(422).JSON(errJSON("ERR_PAYMENT_METHOD_INVALID"))
+		}
 		if currentID != "" {
 			if _, err = tx.Exec(c.UserContext(), `UPDATE subscriptions SET status='SUPERSEDED',ends_at=now() WHERE user_id=$1 AND status='ACTIVE'`, me.UserID); err != nil {
 				return c.Status(500).JSON(errJSON("ERR_SUBSCRIPTION_UPDATE_FAILED"))

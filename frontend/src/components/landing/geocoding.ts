@@ -22,16 +22,15 @@ function placeFromPhoton(feature: PhotonFeature): GeocodedPlace | null {
 }
 
 export async function searchPhoton(query: string, signal?: AbortSignal): Promise<GeocodedPlace[]> {
-  const params = new URLSearchParams({ q: query, limit: '6', lang: 'en', countrycode: 'NG' });
-  const endpoint = process.env.NEXT_PUBLIC_PHOTON_URL ?? 'https://photon.komoot.io/api/';
-  const response = await fetch(`${endpoint}?${params}`, { signal, headers: { Accept: 'application/json' } });
+  const language = typeof document === 'undefined' ? 'en' : document.documentElement.lang.split('-')[0];
+  const params = new URLSearchParams({ q: query, lang: language });
+  const response = await fetch(`/api/geocoding/photon?${params}`, { signal, headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Photon search is unavailable');
   const result = await response.json() as { features?: PhotonFeature[] };
   return (result.features ?? []).map(placeFromPhoton).filter((place): place is GeocodedPlace => place !== null);
 }
 
 type NominatimResult = { lat: string; lon: string; display_name: string; address?: { city?: string; town?: string; village?: string; county?: string; state?: string; country?: string } };
-const nominatimBase = process.env.NEXT_PUBLIC_NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org';
 const nominatimCacheKey = 'deride:nominatim:v1';
 let lastNominatimRequest = 0;
 
@@ -52,9 +51,8 @@ async function cachedNominatim<T>(url: URL, signal?: AbortSignal): Promise<T> {
 }
 
 export async function searchNominatimStructured(destination: string, state: string, signal?: AbortSignal): Promise<GeocodedPlace | null> {
-  const url = new URL(`${nominatimBase}/search`);
-  url.search = new URLSearchParams({ city: destination, state: state === 'All 36 States + FCT' ? 'Nigeria' : state, country: 'Nigeria', format: 'jsonv2', addressdetails: '1', limit: '1' }).toString();
-  const results = await cachedNominatim<NominatimResult[]>(url, signal);
+  const params = new URLSearchParams({ q: `${destination}, ${state === 'All 36 States + FCT' ? 'Nigeria' : state}, Nigeria`, format: 'jsonv2', addressdetails: '1', limit: '1' });
+  const results = await cachedNominatim<NominatimResult[]>(new URL(`/api/geocoding/nominatim/search?${params}`, window.location.origin), signal);
   const result = results[0];
   if (!result) return null;
   const address = result.address ?? {};
@@ -62,8 +60,8 @@ export async function searchNominatimStructured(destination: string, state: stri
 }
 
 export async function reverseNominatim(latitude: number, longitude: number, signal?: AbortSignal): Promise<GeocodedPlace | null> {
-  const url = new URL(`${nominatimBase}/reverse`);
-  url.search = new URLSearchParams({ lat: String(latitude), lon: String(longitude), format: 'jsonv2', addressdetails: '1', zoom: '16' }).toString();
+  const params = new URLSearchParams({ lat: String(latitude), lon: String(longitude) });
+  const url = new URL(`/api/geocoding/nominatim/reverse?${params}`, window.location.origin);
   const result = await cachedNominatim<NominatimResult>(url, signal);
   if (!result?.display_name) return null;
   const address = result.address ?? {};
